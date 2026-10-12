@@ -104,26 +104,36 @@ export function parseEmbeddingResponse(payload: unknown, expected: number): numb
 	});
 }
 
-type FeatureExtractor = (
+export type FeatureExtractor = (
 	texts: string[],
 	options: { pooling: string; normalize: boolean },
 ) => Promise<{ tolist(): number[][] }>;
 
+export interface TransformersModule {
+	pipeline(task: string, model: string, options: object): Promise<FeatureExtractor>;
+}
+
+const loadTransformers = (): Promise<TransformersModule> => {
+	const moduleName = "@huggingface/transformers";
+	return import(moduleName);
+};
+
 /** Local embeddings through transformers.js (optional dependency), e.g. onnx-community/Qwen3-Embedding-0.6B-ONNX. */
 export class TransformersEmbedder implements Embedder {
 	private readonly config: EmbeddingsConfig;
+	private readonly loader: () => Promise<TransformersModule>;
 	private extractor: Promise<FeatureExtractor> | undefined;
 
-	constructor(config: EmbeddingsConfig) {
+	constructor(config: EmbeddingsConfig, loader: () => Promise<TransformersModule> = loadTransformers) {
 		this.config = config;
+		this.loader = loader;
 	}
 
 	private load(): Promise<FeatureExtractor> {
 		this.extractor ??= (async () => {
-			const moduleName = "@huggingface/transformers";
-			let mod: { pipeline: (task: string, model: string, options: object) => Promise<FeatureExtractor> };
+			let mod: TransformersModule;
 			try {
-				mod = await import(moduleName);
+				mod = await this.loader();
 			} catch {
 				throw new EmbeddingError(
 					'Local embeddings need the optional dependency "@huggingface/transformers"; install it next to pi-idcoder or use provider "openai-compatible".',
