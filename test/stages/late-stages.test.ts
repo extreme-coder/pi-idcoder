@@ -734,8 +734,9 @@ describe("review gate stage", () => {
 		expect((await reviewGateStage.run(ctx)).summary).toContain("already approved");
 	});
 
-	it("picks up an approval saved by the browser viewer", async () => {
+	it("picks up an approval saved by the browser viewer for a staged proposal", async () => {
 		const ctx = await prepared();
+		expect((await reviewGateStage.run(ctx)).status).toBe("paused");
 		const v2 = {
 			version: 2,
 			clusters: { "0": { label: "Renamed" }, "1": { label: "C" } },
@@ -745,6 +746,19 @@ describe("review gate stage", () => {
 		await writeJson(join(ctx.projectDir, ".idcoder/viewer-data/codebook-reviews/test/test-codebook_v2.json"), v2);
 		expect((await reviewGateStage.run(ctx)).status).toBe("done");
 		expect((await readJson<{ codebook: Record<string, string> }>(ctx.paths.codebook)).codebook["0"]).toBe("Renamed");
+	});
+
+	it("ignores approvals left over from an earlier review and clears them when staging", async () => {
+		const ctx = await prepared();
+		const stale = join(ctx.projectDir, ".idcoder/viewer-data/codebook-reviews/test/codebook_v2.json");
+		await writeJson(stale, { version: 2, clusters: {}, operations: [], cluster_to_codes: {} });
+		expect((await reviewGateStage.run(ctx)).status).toBe("paused");
+		expect(await fileExists(stale)).toBe(false);
+		expect(reviewGateStage.checkpoints!(ctx.paths)).toEqual([
+			ctx.paths.codebookV1,
+			ctx.paths.codebookV2,
+			ctx.paths.codebookProvenance,
+		]);
 	});
 
 	it("is disabled by config", () => {

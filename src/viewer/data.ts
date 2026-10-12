@@ -1,4 +1,4 @@
-import { copyFile, readdir } from "node:fs/promises";
+import { copyFile, readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import type { RunPaths } from "../artifacts/paths.ts";
 import type { GlobalGraphFile } from "../artifacts/types.ts";
@@ -143,6 +143,20 @@ export async function exportProject(options: {
 	await writeJson(join(dir, "meta.json"), meta(slug, await resolveResearchQuestion(paths, options.researchQuestion)));
 	await addToManifest(root, "projects", slug);
 	return dir;
+}
+
+/** Removes approvals left from an earlier review so a fresh proposal cannot be auto-approved by them. */
+export async function clearViewerApprovals(root: string, slug: string): Promise<void> {
+	const dir = codebookReviewDir(root, slug);
+	let names: string[];
+	try {
+		names = await readdir(dir);
+	} catch {
+		return;
+	}
+	for (const name of names) {
+		if (name === "codebook_v2.json" || name.endsWith("-codebook_v2.json")) await rm(join(dir, name), { force: true });
+	}
 }
 
 /** The approved review dropped by the viewer: canonical name first, else the newest `*-codebook_v2.json`. */

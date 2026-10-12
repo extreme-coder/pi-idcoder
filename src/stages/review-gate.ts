@@ -1,13 +1,13 @@
 import type { ArtifactStore } from "../artifacts/store.ts";
 import { resolveViewerDir } from "../config/load.ts";
-import { readJson, writeJson } from "../core/fs.ts";
+import { fileExists, readJson, writeJson } from "../core/fs.ts";
 import { buildCodeEvidence } from "../evidence/code-evidence.ts";
 import { loadOrBuildSourceMemory } from "../evidence/source-memory.ts";
 import { done, type Stage, type StageContext } from "../pipeline/stage.ts";
 import { applyCodebookReview, materializeClustered } from "../review/apply.ts";
 import { findSavedApproval } from "../review/gateway.ts";
 import { buildV1, type EnrichedCodebook } from "../review/schema.ts";
-import { exportCodebookReview } from "../viewer/data.ts";
+import { clearViewerApprovals, exportCodebookReview } from "../viewer/data.ts";
 
 /** Writes the reviewed codebook over the pipeline artifacts and records provenance. */
 export async function materializeApproval(
@@ -60,12 +60,16 @@ export const reviewGateStage: Stage = {
 	id: "codebook_review",
 	title: "Codebook review (human)",
 	enabled: (config) => config.review.enabled,
+	checkpoints: (paths) => [paths.codebookV1, paths.codebookV2, paths.codebookProvenance],
 	async run(ctx) {
 		const existing = await ctx.store.provenance();
 		if (existing) return done(`Codebook already approved at ${existing.approved_at}`);
 
 		const viewerDir = resolveViewerDir(ctx.config, ctx.projectDir);
-		const saved = await findSavedApproval(ctx.paths, viewerDir, ctx.slug);
+		// approvals only count for a proposal this gate has staged
+		const saved = (await fileExists(ctx.paths.codebookV1))
+			? await findSavedApproval(ctx.paths, viewerDir, ctx.slug)
+			: undefined;
 		let payload: EnrichedCodebook;
 		let reviewId: string | null = ctx.slug;
 		let approvedAt: string | undefined;
@@ -74,6 +78,7 @@ export const reviewGateStage: Stage = {
 			ctx.logger.info("CODEBOOK_REVIEW_FOUND", saved);
 		} else {
 			const proposal = await buildProposal(ctx.store);
+			await clearViewerApprovals(viewerDir, ctx.slug);
 			await stageForViewer(ctx, proposal, viewerDir);
 			const decision = await ctx.review.review({
 				slug: ctx.slug,
