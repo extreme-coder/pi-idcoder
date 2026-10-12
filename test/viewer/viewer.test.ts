@@ -83,6 +83,8 @@ describe("viewer launcher", () => {
 			expect(patchBundleSource(source)).toEqual({ source, patched: false });
 		}
 		expect(patchBundleSource("nothing here").patched).toBe(false);
+		const dollar = patchBundleSource(`a;${HELPER("$$a")};b`);
+		expect(dollar.source).toContain('function $$a(n,e){fetch("');
 	});
 
 	it("extracts, flattens nested archives, and rejects path traversal", async () => {
@@ -190,10 +192,30 @@ describe("viewer server", () => {
 
 	it("rejects malformed submissions and unknown endpoints", async () => {
 		const { url } = await served();
-		const post = (path: string, body: string) => fetch(new URL(path, url), { method: "POST", body });
+		const post = (
+			path: string,
+			body: string,
+			headers: Record<string, string> = { "content-type": "application/json" },
+		) => fetch(new URL(path, url), { method: "POST", body, headers });
 		expect((await post(SUBMIT_API_PATH, "{bad")).status).toBe(400);
 		expect((await post(SUBMIT_API_PATH, '{"payload": []}')).status).toBe(400);
 		expect((await post("/api/other", "{}")).status).toBe(404);
+		const valid = JSON.stringify({ filename: "..-codebook_v2.json", payload: {} });
+		expect((await post(SUBMIT_API_PATH, valid)).status).toBe(400);
+	});
+
+	it("refuses submissions that are not from the viewer page (CSRF)", async () => {
+		const { url, server } = await served();
+		let approvals = 0;
+		server.on("approved", () => approvals++);
+		const body = JSON.stringify({ filename: "s-codebook_v2.json", payload: { version: 2 } });
+		const post = (headers: Record<string, string>) =>
+			fetch(new URL(SUBMIT_API_PATH, url), { method: "POST", body, headers });
+		expect((await post({ "content-type": "text/plain" })).status).toBe(415);
+		expect((await post({ "content-type": "application/json", origin: "https://evil.example" })).status).toBe(403);
+		const port = new URL(url).port;
+		expect((await post({ "content-type": "application/json", origin: `http://localhost:${port}` })).status).toBe(200);
+		expect(approvals).toBe(1);
 	});
 
 	it("stops waiting on abort and restarts idempotently", async () => {
@@ -226,6 +248,7 @@ describe("browser review gateway", () => {
 				setTimeout(() => {
 					void fetch(new URL(SUBMIT_API_PATH, url), {
 						method: "POST",
+						headers: { "content-type": "application/json" },
 						body: JSON.stringify({
 							filename: "test-codebook_v2.json",
 							payload: { version: 2, clusters: {}, operations: [], cluster_to_codes: {} },

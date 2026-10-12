@@ -6,7 +6,7 @@ import { extname, join, normalize, resolve, sep } from "node:path";
 import { writeJson } from "../core/fs.ts";
 import { isRecord } from "../core/json.ts";
 import { codebookReviewDir } from "./data.ts";
-import { SUBMIT_API_PATH, slugFromExportFilename } from "./launcher.ts";
+import { isSafeSlug, SUBMIT_API_PATH, slugFromExportFilename } from "./launcher.ts";
 
 const MIME: Record<string, string> = {
 	".html": "text/html; charset=utf-8",
@@ -132,6 +132,17 @@ export class ViewerServer extends EventEmitter<{ approved: [ApprovalEvent] }> {
 		const path = decodeURIComponent((req.url ?? "/").split("?")[0]!);
 		if (req.method === "POST") {
 			if (path !== SUBMIT_API_PATH) return this.send(res, 404, { ok: false, error: "Not found" });
+			// Only the viewer page itself may submit: a JSON content type forces a CORS preflight for
+			// other origins (never answered here), and an explicit foreign Origin is refused outright.
+			const origin = req.headers.origin;
+			const port = new URL(this.url).port;
+			const allowed = [`http://127.0.0.1:${port}`, `http://localhost:${port}`];
+			if (origin !== undefined && !allowed.includes(origin)) {
+				return this.send(res, 403, { ok: false, error: "Cross-origin submissions are not allowed" });
+			}
+			if (!(req.headers["content-type"] ?? "").toLowerCase().startsWith("application/json")) {
+				return this.send(res, 415, { ok: false, error: "Expected application/json" });
+			}
 			let data: unknown;
 			try {
 				data = JSON.parse(await this.readBody(req));
@@ -142,6 +153,7 @@ export class ViewerServer extends EventEmitter<{ approved: [ApprovalEvent] }> {
 				return this.send(res, 400, { ok: false, error: "payload must be a JSON object" });
 			}
 			const slug = slugFromExportFilename(typeof data.filename === "string" ? data.filename : "codebook_v2.json");
+			if (!isSafeSlug(slug)) return this.send(res, 400, { ok: false, error: "Invalid review slug" });
 			const written = join(codebookReviewDir(this.options.dataDir, slug), "codebook_v2.json");
 			await writeJson(written, data.payload);
 			await writeJson(

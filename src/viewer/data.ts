@@ -2,7 +2,7 @@ import { copyFile, readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import type { RunPaths } from "../artifacts/paths.ts";
 import type { GlobalGraphFile } from "../artifacts/types.ts";
-import { ensureDir, fileExists, readJson, readJsonIfExists, readText, writeJson } from "../core/fs.ts";
+import { ensureDir, fileExists, mtimeMs, readJson, readJsonIfExists, readText, writeJson } from "../core/fs.ts";
 import { isRecord } from "../core/json.ts";
 import type { CodeEvidenceFile } from "../evidence/code-evidence.ts";
 
@@ -165,8 +165,12 @@ export async function findViewerApproval(root: string, slug: string): Promise<st
 	const canonical = join(dir, "codebook_v2.json");
 	if (await fileExists(canonical)) return canonical;
 	try {
-		const matches = (await readdir(dir)).filter((name) => name.endsWith("-codebook_v2.json")).sort();
-		return matches.length ? join(dir, matches.at(-1)!) : undefined;
+		const matches = (await readdir(dir)).filter((name) => name.endsWith("-codebook_v2.json"));
+		const dated = await Promise.all(
+			matches.map(async (name) => ({ name, time: (await mtimeMs(join(dir, name))) ?? 0 })),
+		);
+		dated.sort((a, b) => a.time - b.time || a.name.localeCompare(b.name));
+		return dated.length ? join(dir, dated.at(-1)!.name) : undefined;
 	} catch {
 		return undefined;
 	}

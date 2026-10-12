@@ -4,7 +4,7 @@ import { fileExists, readJson, writeJson } from "../core/fs.ts";
 import { buildCodeEvidence } from "../evidence/code-evidence.ts";
 import { loadOrBuildSourceMemory } from "../evidence/source-memory.ts";
 import { done, type Stage, type StageContext } from "../pipeline/stage.ts";
-import { applyCodebookReview, materializeClustered } from "../review/apply.ts";
+import { applyCodebookReview, CodebookReviewError, materializeClustered } from "../review/apply.ts";
 import { findSavedApproval } from "../review/gateway.ts";
 import { buildV1, type EnrichedCodebook } from "../review/schema.ts";
 import { clearViewerApprovals, exportCodebookReview } from "../viewer/data.ts";
@@ -16,6 +16,15 @@ export async function materializeApproval(
 	options: { reviewId: string | null; approvedAt?: string | undefined },
 ): Promise<{ clusters: number; orphaned: number }> {
 	const clustered = await store.clustered();
+	const known = new Set(Object.values(clustered.cluster_to_codes).flat());
+	const unknown = Object.values(payload.cluster_to_codes ?? {})
+		.flat()
+		.filter((code) => !known.has(code));
+	if (unknown.length) {
+		throw new CodebookReviewError(
+			`The approved codebook contains ${unknown.length} code(s) that are not in this run (e.g. ${JSON.stringify(unknown[0])}); it was not applied.`,
+		);
+	}
 	const result = applyCodebookReview(payload, clustered, options);
 	await store.writeCodebook({ codebook: result.codebook, cluster_to_codes: result.clusterToCodes });
 	await store.writeConfidence(result.confidence);

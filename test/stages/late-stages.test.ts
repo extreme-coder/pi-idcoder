@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, utimes } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -765,6 +765,21 @@ describe("review gate stage", () => {
 		]);
 	});
 
+	it("refuses approvals that reference codes outside the run", async () => {
+		const ctx = await prepared({
+			review: async (req) => ({
+				kind: "approved",
+				payload: {
+					...req.proposal,
+					cluster_to_codes: { ...req.proposal.cluster_to_codes, "0": ["a", "b", "forged"] },
+				},
+				reviewId: "x",
+			}),
+		});
+		await expect(reviewGateStage.run(ctx)).rejects.toThrow(/not in this run/);
+		expect(await fileExists(ctx.paths.codebookProvenance)).toBe(false);
+	});
+
 	it("is disabled by config", () => {
 		expect(reviewGateStage.enabled(testConfig({ review: { enabled: false } }))).toBe(false);
 	});
@@ -827,5 +842,10 @@ describe("viewer data (ported from test_viewer_export.py)", () => {
 		expect(researchQuestionFromReport("no marker")).toBe("");
 		const { viewer } = await outputs();
 		expect(await findViewerApproval(viewer, "none")).toBeUndefined();
+		const dir = join(viewer, "codebook-reviews", "s");
+		await writeJson(join(dir, "z-codebook_v2.json"), {});
+		await writeJson(join(dir, "a-codebook_v2.json"), {});
+		await utimes(join(dir, "z-codebook_v2.json"), new Date(1000), new Date(1000));
+		expect(await findViewerApproval(viewer, "s")).toBe(join(dir, "a-codebook_v2.json"));
 	});
 });

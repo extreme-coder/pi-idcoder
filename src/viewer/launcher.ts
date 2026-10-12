@@ -106,7 +106,9 @@ export function patchBundleSource(source: string): { source: string; patched: bo
 	const [whole, name, filename, payload] = match;
 	const hook = `fetch("${SUBMIT_API_PATH}",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({filename:${filename},payload:${payload}})}).catch(()=>{});`;
 	const body = whole.slice(whole.indexOf("{") + 1);
-	return { source: source.replace(whole, `function ${name}(${filename},${payload}){${hook}${body}`), patched: true };
+	// a replacer function, so `$` sequences in minified identifiers are not treated as patterns
+	const patchedHelper = `function ${name}(${filename},${payload}){${hook}${body}`;
+	return { source: source.replace(whole, () => patchedHelper), patched: true };
 }
 
 export async function patchBundleForPipelineSubmit(
@@ -142,6 +144,11 @@ export async function syncData(dataSrc: string, distDir: string): Promise<void> 
 	const target = join(distDir, "data");
 	await rm(target, { recursive: true, force: true });
 	await cp(dataSrc, target, { recursive: true });
+}
+
+/** Same rule as `study.slug`; also rejects `.` and `..`. */
+export function isSafeSlug(slug: string): boolean {
+	return /^[A-Za-z0-9._-]+$/.test(slug) && slug !== "." && slug !== "..";
 }
 
 export function slugFromExportFilename(filename: string): string {
