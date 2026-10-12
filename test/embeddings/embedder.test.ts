@@ -68,6 +68,14 @@ describe("OpenAICompatibleEmbedder", () => {
 		expect(calls).toBe(3);
 	});
 
+	it("explains a missing API key on 401", async () => {
+		const embedder = new OpenAICompatibleEmbedder(base, {
+			fetch: async () => new Response("unauthorized", { status: 401 }),
+			env: {},
+		});
+		await expect(embedder.embed(["x"])).rejects.toThrow(/set \$OPENAI_API_KEY/);
+	});
+
 	it("fails fast on permanent errors", async () => {
 		let calls = 0;
 		const embedder = new OpenAICompatibleEmbedder(base, {

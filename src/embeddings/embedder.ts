@@ -69,6 +69,9 @@ export class OpenAICompatibleEmbedder implements Embedder {
 				});
 				if (response.ok) return parseEmbeddingResponse(await response.json(), batch.length);
 				message = `HTTP ${response.status}: ${(await response.text()).slice(0, 300)}`;
+				if ((response.status === 401 || response.status === 403) && !apiKey) {
+					message += ` (no API key: set $${this.config.apiKeyEnv} or point embeddings.baseUrl at a local server)`;
+				}
 			} catch (error) {
 				if (signal?.aborted) throw new AbortedError();
 				if (error instanceof EmbeddingError) throw error;
