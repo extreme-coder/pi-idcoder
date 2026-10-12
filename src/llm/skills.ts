@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const BUNDLED_SKILLS_DIR = fileURLToPath(new URL("../skills/", import.meta.url));
+export const BUNDLED_SKILLS_DIR = fileURLToPath(new URL("../prompts/system/", import.meta.url));
 
 /** Drops a leading `---` YAML block so frontmatter never reaches the model. */
 export function stripFrontmatter(text: string): string {
