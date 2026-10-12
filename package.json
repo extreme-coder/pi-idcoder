@@ -1,0 +1,62 @@
+{
+	"name": "pi-idcoder",
+	"version": "0.1.0",
+	"description": "ID-Coder for pi: inductive thematic coding with a human review gate, deductive recoding, and LLM/human evaluation",
+	"type": "module",
+	"license": "MIT",
+	"keywords": [
+		"pi-package",
+		"qualitative-coding",
+		"thematic-analysis",
+		"grounded-theory"
+	],
+	"engines": {
+		"node": ">=22.19.0"
+	},
+	"files": [
+		"extensions",
+		"src",
+		"skills",
+		"README.md",
+		"TESTING.md"
+	],
+	"pi": {
+		"extensions": [
+			"./extensions/idcoder/index.ts"
+		],
+		"skills": [
+			"./skills"
+		]
+	},
+	"scripts": {
+		"check": "npm run typecheck && npm run lint && npm test",
+		"typecheck": "tsc --noEmit",
+		"lint": "biome check .",
+		"format": "biome check --write .",
+		"test": "vitest --run",
+		"test:watch": "vitest",
+		"test:coverage": "vitest --run --coverage",
+		"test:live": "IDCODER_LIVE=1 vitest --run test/live"
+	},
+	"dependencies": {
+		"csv-parse": "^7.0.3",
+		"fflate": "^0.8.3"
+	},
+	"peerDependencies": {
+		"@earendil-works/pi-ai": "*",
+		"@earendil-works/pi-coding-agent": "*",
+		"@earendil-works/pi-tui": "*",
+		"typebox": "*"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.3.5",
+		"@earendil-works/pi-ai": "^1.1.0",
+		"@earendil-works/pi-coding-agent": "^1.1.0",
+		"@earendil-works/pi-tui": "^1.1.0",
+		"@types/node": "22.19.19",
+		"@vitest/coverage-v8": "4.1.11",
+		"typebox": "^1.3.37",
+		"typescript": "7.0.2",
+		"vitest": "4.1.11"
+	}
+}

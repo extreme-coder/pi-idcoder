@@ -1,0 +1,5 @@
+node_modules/
+coverage/
+.idcoder/
+*.log
+.DS_Store
