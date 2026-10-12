@@ -234,6 +234,45 @@ describe("deductive recoding", () => {
 	});
 });
 
+describe("recode checkpoints", () => {
+	it("ignore results recorded against a different codebook or ground truth", async () => {
+		const dir = await mkdtemp(join(tmpdir(), "idc-eval-"));
+		const files = {
+			output: join(dir, "o.jsonl"),
+			unresolved: join(dir, "u.jsonl"),
+			checkpoint: join(dir, "c.jsonl"),
+		};
+		const llm = new ScriptedLlm({
+			deductive_recode: (req) => {
+				const n = (req.prompt.match(/^\d+\. "/gm) ?? []).length;
+				return JSON.stringify({
+					classifications: Array.from({ length: n }, (_, i) => ({ quote_index: i + 1, meta_theme: "A" })),
+				});
+			},
+		});
+		const settings = { batchSize: 5, workers: 1, maxRounds: 0, maxRetries: 0, includeReasoning: false };
+		const deps = (cb: ReturnType<typeof formatCodebook>) => ({
+			llm,
+			model: "m",
+			codebook: cb,
+			level: "full" as const,
+			settings,
+			seed: 1,
+			files,
+			logger: silentLogger,
+		});
+		const rows = [truthRow(1, 0), truthRow(2, 1)];
+		await recodeAll(rows, deps(formatCodebook(dims.meta_themes_enriched, "full")));
+		await recodeAll(rows, deps(formatCodebook(dims.meta_themes_enriched, "full")));
+		expect(llm.calls).toHaveLength(1);
+		const edited = dims.meta_themes_enriched.map((e) => ({ ...e, definition: `${e.definition}!` }));
+		await recodeAll(rows, deps(formatCodebook(edited, "full")));
+		expect(llm.calls).toHaveLength(2);
+		await recodeAll([truthRow(1, 1), truthRow(2, 1)], deps(formatCodebook(edited, "full")));
+		expect(llm.calls).toHaveLength(3);
+	});
+});
+
 describe("agreement", () => {
 	const codebook = formatCodebook(dims.meta_themes_enriched, "full");
 	const rows: RecodeRow[] = [
@@ -300,15 +339,20 @@ describe("disagreement items", () => {
 		);
 		expect(items).toHaveLength(1);
 		const [item] = items;
-		expect(item).toMatchObject({
-			item_id: "item_000001",
-			raised_by: ["m1", "m2"],
-			true_label: "Perf",
-			pred_label: "Money",
-		});
+		expect(item).toMatchObject({ raised_by: ["m1", "m2"], true_label: "Perf", pred_label: "Money" });
+		expect(item!.item_id).toMatch(/^item_[0-9a-f]{16}$/);
 		const inductive = item!.true_side === "A" ? item!.option_a : item!.option_b;
 		expect(inductive).toEqual({ label: "Perf", definition: "d0", inclusion: ["i0"], exclusion: [] });
 		expect(buildItemPool(new Map([["m1", rowsA]]), dims.meta_themes_enriched, 7)[0]!.true_side).toBe(item!.true_side);
+	});
+
+	it("keeps ids and sides stable when other items appear, and changes them when the codebook text changes", () => {
+		const extra = toRecodeRow(truthRow(9, 1), "A", codebook, "full", "m1");
+		const before = buildItemPool(new Map([["m1", rowsA]]), dims.meta_themes_enriched, 7)[0]!;
+		const after = buildItemPool(new Map([["m1", [extra, ...rowsA]]]), dims.meta_themes_enriched, 7);
+		expect(after.find((i) => i.item_id === before.item_id)).toEqual(before);
+		const edited = dims.meta_themes_enriched.map((e, i) => (i === 0 ? { ...e, definition: "rewritten" } : e));
+		expect(buildItemPool(new Map([["m1", rowsA]]), edited, 7)[0]!.item_id).not.toBe(before.item_id);
 	});
 
 	it("balances sides over many items", () => {
@@ -528,8 +572,11 @@ describe("evaluation end to end (simulated models)", () => {
 		expect(recodeCalls.some((c) => c.request.prompt.includes("INCLUSION CRITERIA"))).toBe(true);
 		expect(recodeCalls.some((c) => !c.request.prompt.includes("DEFINITION:"))).toBe(true);
 
+		await recordJudgment(outcome.paths, makeJudgment({ ...items[0]!, item_id: "item_gone" }, "ana", "A"));
+		await recordJudgment(outcome.paths, makeJudgment(items[0]!, "ana", "A"));
 		const before = gateway.calls.length;
 		const rerun = await runEvaluation(session, { steps: ["recode", "judge", "summary"] });
+		expect(rerun.summary!.humans!.judgments).toBe(1);
 		expect(gateway.calls.length).toBe(before);
 		expect(rerun.summary!.items).toBe(items.length);
 	});

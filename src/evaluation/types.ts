@@ -21,6 +21,8 @@ export interface RecodeRow extends GroundTruthRow {
 	agree: boolean | null;
 	detail_level: DetailLevel;
 	classifier_model: string;
+	/** Fingerprint of the codebook text the agent saw; checkpoints from another codebook are ignored. */
+	codebook_hash?: string;
 }
 
 export interface JudgeOptionText {

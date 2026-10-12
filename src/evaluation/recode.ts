@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { DetailLevel, IdcoderConfig } from "../config/schema.ts";
 import { mapConcurrent } from "../core/concurrency.ts";
 import { appendJsonl, readJsonl, writeJsonl } from "../core/fs.ts";
@@ -138,9 +139,12 @@ export async function recodeAll(
 	},
 ): Promise<RecodeResult> {
 	const { settings, files } = deps;
+	const codebookHash = createHash("sha256").update(deps.codebook.text).digest("hex").slice(0, 16);
+	const truth = new Map(rows.map((r) => [rowKey(r), r.true_meta_theme_idx]));
 	const good = new Map<string, RecodeRow>();
 	for (const row of await readJsonl<RecodeRow>(files.checkpoint)) {
-		if (row.status === "classified") good.set(rowKey(row), row);
+		const current = row.status === "classified" && row.codebook_hash === codebookHash;
+		if (current && truth.get(rowKey(row)) === row.true_meta_theme_idx) good.set(rowKey(row), row);
 	}
 	let pending = rows.filter((r) => !good.has(rowKey(r)));
 	const total = rows.length;
@@ -166,7 +170,10 @@ export async function recodeAll(
 					logger: deps.logger,
 					signal: deps.signal,
 				});
-				return batch.map((row, i) => toRecodeRow(row, preds.get(i + 1), deps.codebook, deps.level, deps.model));
+				return batch.map((row, i) => ({
+					...toRecodeRow(row, preds.get(i + 1), deps.codebook, deps.level, deps.model),
+					codebook_hash: codebookHash,
+				}));
 			},
 			{
 				signal: deps.signal,

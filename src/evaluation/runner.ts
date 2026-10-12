@@ -60,7 +60,8 @@ export async function runEvaluation(session: RunSession, options: EvaluationOpti
 	const llm = session.llm.forStage("evaluation");
 	const emit = options.onEvent ?? (() => {});
 	const notes: string[] = [];
-	const levels = [...new Set(config.evaluation.levels)];
+	// the disagreement pool is built at the judge level, so it is always recoded
+	const levels = [...new Set([...config.evaluation.levels, config.evaluation.judge.level])];
 	const deductive = deductiveModels(session);
 	const judges = [...config.models.judges];
 	const evidence = config.enrichment.dimensionEvidence;
@@ -185,11 +186,12 @@ export async function runEvaluation(session: RunSession, options: EvaluationOpti
 		let summary: EvaluationSummary | null = null;
 		if (steps.has("summary")) {
 			emit({ type: "step_start", step: "summary", detail: "" });
+			const poolIds = new Set(items.map((i) => i.item_id));
 			summary = summarizeEvaluation({
 				items: items.length,
 				agreement,
 				judgeRows,
-				humanJudgments: await loadHumanJudgments(paths),
+				humanJudgments: (await loadHumanJudgments(paths)).filter((j) => poolIds.has(j.item_id)),
 			});
 			await writeJson(paths.summaryJson, summary);
 			await writeTextAtomic(paths.summaryMarkdown, renderSummaryMarkdown(summary));
