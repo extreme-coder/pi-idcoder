@@ -29,6 +29,18 @@ export class RunPaths {
 	get openCodingCheckpoint(): string {
 		return join(this.data, "open_coding.checkpoint.jsonl");
 	}
+	get labelingCheckpoint(): string {
+		return join(this.data, "labeling.checkpoint.jsonl");
+	}
+	get enrichmentCheckpoint(): string {
+		return join(this.data, "enrichment.checkpoint.jsonl");
+	}
+	get hierarchyCheckpoint(): string {
+		return join(this.data, "hierarchy.checkpoint.jsonl");
+	}
+	get dimensionsCheckpoint(): string {
+		return join(this.data, "dimensions.checkpoint.jsonl");
+	}
 	get openCodesMarkdown(): string {
 		return join(this.data, "gt_open_codes_all_reviews.md");
 	}

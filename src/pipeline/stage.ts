@@ -64,6 +64,8 @@ export interface Stage {
 	/** Disabled stages are recorded as skipped (e.g. enrichment or review turned off). */
 	enabled(config: IdcoderConfig): boolean;
 	run(ctx: StageContext): Promise<StageOutcome>;
+	/** Crash-recovery files: reused when a stage resumes, deleted when it is explicitly re-run. */
+	checkpoints?(paths: RunPaths): string[];
 }
 
 export function done(summary: string, metrics?: Record<string, number | string>): StageOutcome {
