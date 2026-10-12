@@ -132,6 +132,12 @@ The full 14-stage pipeline runs on 32 synthetic reviews through the real `RunSes
 - **Rendering.** Screens are pure functions of state, so they are tested without a terminal. Every screen at widths 20, 40, 80, and 200 must never exceed the width. This contract found real overflow bugs (rule titles, option headings, page counters), and text assertions caught help text being truncated instead of wrapped.
 - **Key handling.** Pure reducers (navigation, paging, focus, action keys, checklist, judging keys per outcome set).
 - **Flows.** Scripted `UiPort` sessions cover full editing (rename, describe, flag, move, split, merge, undo, approve), drop/restore/create, validation errors shown on screen, dismissed dialogs as no-ops, cancel confirmation, and selection following the edited cluster.
+- **Real terminal smoke** (`test/manual/tui-smoke.py`, POSIX).
+  - Builds a paused run offline with `test/manual/make-paused-run.ts`.
+  - Starts interactive pi in a pseudo-terminal and types `/idcoder review`.
+  - Renames a cluster through pi's input dialog, approves through its confirm dialog, and declines resuming.
+  - Asserts that `codebook_v2.json` records the edit as `llm+edited`.
+  - It is timing-based, so it is not part of the default suite.
 
 ### L7 Extension
 - **Registration.** A fake `ExtensionAPI` records registrations: 4 tools, the command, the flag, and shutdown cleanup.
@@ -236,7 +242,7 @@ Unit-level parity is proven by golden prompts and ported tests. Distribution-lev
 
 Automated tests cover rendering contracts and flows. These checks need eyes:
 
-- [ ] `/idcoder review` in pi's fullscreen and regular TUI modes, at a narrow (60 col) and a wide terminal, in light and dark themes. The selected row is readable and the help line wraps.
+- [ ] `/idcoder review` in pi's fullscreen mode (regular mode is covered by `test/manual/tui-smoke.py`), at a narrow (60 col) and a wide terminal, in light and dark themes. The selected row is readable and the help line wraps.
 - [ ] Long labels, unicode, and emoji in codes and quotes render without misalignment.
 - [ ] Every action dialog: rename, describe (multi-line editor), merge, split, move, drop/restore, new, undo, approve, cancel with unsaved edits.
 - [ ] `idcoder_run` invoked by the agent in the TUI opens the review screen mid-tool, and the turn ends cleanly after approval.
@@ -269,7 +275,9 @@ Automated tests cover rendering contracts and flows. These checks need eyes:
 | L9 | Implemented and run once locally: both published viewer releases patch successfully |
 | L10 | Implemented and typechecked, **not executed**: no OpenRouter key was available. Default model ids are examples; confirm them against pi's catalog before the first run |
 | L11 | **Protocol only**: needs real models, the Python pipeline's runtime (SGLang + GPU), and the paper's datasets |
-| Not exercised | The optional `@huggingface/transformers` backend with a real model download (its adapter is unit-tested through an injected loader); interactive TUI rendering in a real terminal; clicking through the browser viewer; Windows |
+| Real-terminal TUI | Run once locally with `test/manual/tui-smoke.py`: the review screen renders in pi's interactive TUI, and rename, approve, and the resume prompt work end to end |
+| Package install | `pi install <dir>` followed by a fresh session discovers `/idcoder` and `skill:idcoder` (checked manually) |
+| Not exercised | The optional `@huggingface/transformers` backend with a real model download (its adapter is unit-tested through an injected loader); themes and narrow widths in a real terminal beyond the smoke path; clicking through the browser viewer; Windows |
 
 ## Writing new tests
 
