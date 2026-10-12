@@ -48,10 +48,11 @@ describe.runIf(piAvailable)("pi integration over RPC (mock OpenAI-compatible end
 		await mock.stop();
 	});
 
-	it("registers the /idcoder command", async () => {
+	it("loads the package: the /idcoder command and the agent skill, nothing else", async () => {
 		const response = await pi.command({ type: "get_commands" });
 		const names = ((response.data as { commands: Array<{ name: string }> }).commands ?? []).map((c) => c.name);
-		expect(names).toContain("idcoder");
+		expect(names).toEqual(expect.arrayContaining(["idcoder", "skill:idcoder"]));
+		expect(names.filter((n) => n.startsWith("skill:"))).toEqual(["skill:idcoder"]);
 	});
 
 	it("runs to the human gate, pauses, and reports what to do", async () => {

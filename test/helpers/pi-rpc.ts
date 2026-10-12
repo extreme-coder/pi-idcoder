@@ -5,7 +5,8 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 export const PI_CLI = join(ROOT, "node_modules", "@earendil-works", "pi-coding-agent", "dist", "cli.js");
-export const EXTENSION = join(ROOT, "extensions", "idcoder", "index.ts");
+/** The package root: pi reads the `pi` manifest, loading the extension and the agent skill. */
+export const PACKAGE_DIR = ROOT;
 export const piAvailable = existsSync(PI_CLI);
 
 export type RpcRecord = Record<string, unknown> & { type: string };
@@ -22,8 +23,12 @@ export class PiRpc {
 	constructor(options: { cwd: string; agentDir: string; model: string; env?: NodeJS.ProcessEnv }) {
 		this.child = spawn(
 			process.execPath,
-			[PI_CLI, "--mode", "rpc", "--no-session", "--offline", "-ne", "-e", EXTENSION, "--model", options.model],
-			{ cwd: options.cwd, env: { ...process.env, ...options.env, PI_CODING_AGENT_DIR: options.agentDir } },
+			[PI_CLI, "--mode", "rpc", "--no-session", "--offline", "-ne", "-e", PACKAGE_DIR, "--model", options.model],
+			{
+				cwd: options.cwd,
+				// a private HOME keeps the user's own skills and settings out of the run
+				env: { ...process.env, ...options.env, HOME: options.agentDir, PI_CODING_AGENT_DIR: options.agentDir },
+			},
 		);
 		this.child.stderr.on("data", (d: Buffer) => this.stderr.push(d.toString()));
 		this.child.stdout.on("data", (d: Buffer) => {
