@@ -57,30 +57,38 @@ function applyEdit(session: ReviewSession, edit: Edit, codes: readonly string[])
 	try {
 		switch (edit.kind) {
 			case "rename":
-				return session.rename(pick(edit.c).id, edit.label);
+				session.rename(pick(edit.c).id, edit.label);
+				break;
 			case "move": {
 				const code = codes[edit.code % codes.length]!;
 				if (session.clusterOf(code) !== undefined) session.moveCodes([code], pick(edit.target).id);
-				return;
+				break;
 			}
 			case "merge":
-				return session.merge([pick(edit.b).id], pick(edit.a).id);
+				session.merge([pick(edit.b).id], pick(edit.a).id);
+				break;
 			case "split": {
 				const c = pick(edit.c);
-				return void session.split(c.id, c.codes.slice(0, edit.take), "Split");
+				session.split(c.id, c.codes.slice(0, edit.take), "Split");
+				break;
 			}
 			case "drop":
-				return session.drop(pick(edit.c).id, edit.orphan ? "orphan" : "delete");
+				session.drop(pick(edit.c).id, edit.orphan ? "orphan" : "delete");
+				break;
 			case "restore":
-				return session.restore(pick(edit.c).id);
+				session.restore(pick(edit.c).id);
+				break;
 			case "create": {
 				const code = codes[edit.code % codes.length]!;
-				return void session.create("New", session.clusterOf(code) !== undefined ? [code] : []);
+				session.create("New", session.clusterOf(code) !== undefined ? [code] : []);
+				break;
 			}
 			case "flag":
-				return session.toggleNeedsEvidence(pick(edit.c).id);
+				session.toggleNeedsEvidence(pick(edit.c).id);
+				break;
 			case "undo":
-				return void session.undo();
+				session.undo();
+				break;
 		}
 	} catch (error) {
 		if (!(error instanceof CodebookReviewError)) throw error;

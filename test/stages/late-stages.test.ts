@@ -551,7 +551,7 @@ describe("codebook enrichment", () => {
 		const ctx = await makeContext({ llm });
 		await writeTextAtomic(ctx.paths.openCodesMarkdown, MD);
 		await writeJson(ctx.paths.codebook, {
-			codebook: { "0": "Good", "1": "Bad" },
+			codebook: { "0": "Good | Definition: from an earlier run", "1": "Bad" },
 			cluster_to_codes: { "0": ["a", "b"], "1": ["c"] },
 		});
 		await expect(codebookEnrichmentStage.run(ctx)).rejects.toThrow(/1 cluster\(s\) failed enrichment.*1:Bad/);
@@ -560,9 +560,13 @@ describe("codebook enrichment", () => {
 		await codebookEnrichmentStage.run(ctx2);
 		expect(fixedLlm.calls.length).toBeGreaterThan(0);
 		expect(fixedLlm.calls.every((c) => c.prompt.includes("Theme: Bad"))).toBe(true);
-		const cb = await readJson<{ codebook_enriched: Record<string, EnrichedEntry>; enriched_schema_version: number }>(
-			ctx.paths.codebook,
-		);
+		const cb = await readJson<{
+			codebook: Record<string, string>;
+			codebook_enriched: Record<string, EnrichedEntry>;
+			enriched_schema_version: number;
+		}>(ctx.paths.codebook);
+		expect(cb.codebook["0"]).toBe("Good");
+		expect(cb.codebook_enriched["0"]!.label).toBe("Good");
 		expect(Object.keys(cb.codebook_enriched)).toEqual(["0", "1"]);
 		expect(cb.enriched_schema_version).toBe(1);
 		expect(await fileExists(ctx.paths.codeIdMap)).toBe(true);

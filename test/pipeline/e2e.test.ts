@@ -113,6 +113,7 @@ describe("full inductive pipeline (simulated model)", () => {
 			expect(await fileExists(join(session.projectDir, ".idcoder/viewer-data/projects/test", f))).toBe(true);
 		}
 
+		expect(await readJson(session.paths.configSnapshot)).toEqual(session.config);
 		const usage = await readJsonl<{ stage: string }>(session.paths.usage);
 		expect(usage).toHaveLength(gateway.calls.length);
 		expect(new Set(usage.map((u) => u.stage))).toContain("open_coding");
