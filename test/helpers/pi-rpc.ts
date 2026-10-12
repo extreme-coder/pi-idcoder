@@ -20,10 +20,21 @@ export class PiRpc {
 	private waiters: Array<{ test: (r: RpcRecord) => boolean; resolve: (r: RpcRecord) => void }> = [];
 	private nextId = 0;
 
-	constructor(options: { cwd: string; agentDir: string; model: string; env?: NodeJS.ProcessEnv }) {
+	constructor(options: { cwd: string; agentDir: string; model: string; env?: NodeJS.ProcessEnv; offline?: boolean }) {
 		this.child = spawn(
 			process.execPath,
-			[PI_CLI, "--mode", "rpc", "--no-session", "--offline", "-ne", "-e", PACKAGE_DIR, "--model", options.model],
+			[
+				PI_CLI,
+				"--mode",
+				"rpc",
+				"--no-session",
+				...(options.offline === false ? [] : ["--offline"]),
+				"-ne",
+				"-e",
+				PACKAGE_DIR,
+				"--model",
+				options.model,
+			],
 			{
 				cwd: options.cwd,
 				// a private HOME keeps the user's own skills and settings out of the run
