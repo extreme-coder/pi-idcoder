@@ -71,6 +71,7 @@ export function buildGraphText(graph: unknown, maxChars: number): { text: string
 	const nodesCut = keptNodes.length < nodes.length;
 	if (edgesCut) text += EDGES_NOTE;
 	if (nodesCut) text += NODES_NOTE;
-	if (text.length > maxChars) text = `${text.slice(0, maxChars - 80)}\n...[payload hard truncated to char limit]\n`;
-	return { text, truncated: edgesCut || nodesCut };
+	const hardCut = text.length > maxChars;
+	if (hardCut) text = `${text.slice(0, maxChars - 80)}\n...[payload hard truncated to char limit]\n`;
+	return { text, truncated: edgesCut || nodesCut || hardCut };
 }
