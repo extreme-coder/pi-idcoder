@@ -58,6 +58,16 @@ export const EmbeddingsSchema = Type.Object(
 		baseUrl: Type.String({ default: "https://api.openai.com/v1" }),
 		apiKeyEnv: Type.String({ default: "OPENAI_API_KEY" }),
 		batchSize: Int(1, 2048, 64),
+		dimensions: Type.Optional(
+			Type.Integer({
+				minimum: 1,
+				description: "Requested output size for models that support it (text-embedding-3-*).",
+			}),
+		),
+		pooling: Type.Union([Type.Literal("mean"), Type.Literal("cls"), Type.Literal("last_token")], {
+			default: "mean",
+			description: "transformers.js pooling; Qwen3-Embedding expects last_token.",
+		}),
 		dtype: Type.Optional(Type.String({ description: "transformers.js dtype, e.g. fp32 or q8." })),
 	},
 	{ additionalProperties: false, default: {} },
