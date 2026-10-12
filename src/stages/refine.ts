@@ -150,8 +150,10 @@ export const refineStage: Stage = {
 		Object.values(clusterToCodes).forEach((codes, i) => {
 			for (const code of codes) index.set(code, i);
 		});
+		// LLM-clustering theme names are keyed by the old cluster ids, so they cannot survive the rekey
+		const { cluster_theme_names: _staleNames, ...rest } = clustered;
 		await ctx.store.writeClustered({
-			...clustered,
+			...rest,
 			labels: clustered.all_codes.map((code) => index.get(code) ?? 0),
 			k: oldIds.length,
 			cluster_to_codes: clusterToCodes,

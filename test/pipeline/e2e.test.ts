@@ -138,6 +138,86 @@ describe("full inductive pipeline (simulated model)", () => {
 		expect(state.stages.codebook_review.status).toBe("skipped");
 	});
 
+	it("re-running from a stage reproduces a fresh run instead of compounding earlier rewrites", async () => {
+		const projectDir = await tempProject();
+		await writeCorpus(projectDir, gameReviews());
+		// refinement always moves the first code of a cluster to its most similar neighbour
+		const moving = new SimulatedGateway((_ref, _skill, request) => {
+			if (!request.prompt.includes("You are reviewing the codes assigned")) return undefined;
+			const code = /Codes in this cluster:\n- (.+)/.exec(request.prompt)![1]!;
+			const target = /you may not suggest any other label\):\n([^,\n]+)/.exec(request.prompt)![1]!;
+			return `MOVE: "${code}" → "${target}"`;
+		});
+		const session = new RunSession({
+			projectDir,
+			config: testConfig({ review: { enabled: false }, clustering: { kMin: 2, kMaxCap: 8 } }),
+			gateway: moving,
+			embedder: new HashingEmbedder(),
+			retryBaseMs: 0,
+		});
+		const refinePrompts = () => moving.calls.filter((c) => c.skill === "custom").map((c) => c.request.prompt);
+		expect((await session.run({ review: pausingReviewGateway })).status).toBe("completed");
+		const first = { prompts: refinePrompts(), codebook: await readFile(session.paths.codebook, "utf8") };
+		expect(first.prompts.length).toBeGreaterThan(0);
+		moving.calls.length = 0;
+		expect((await session.run({ review: pausingReviewGateway, from: "refine_assignments" })).status).toBe(
+			"completed",
+		);
+		expect(refinePrompts()).toEqual(first.prompts);
+		expect(await readFile(session.paths.codebook, "utf8")).toBe(first.codebook);
+	});
+
+	it("re-review starts from the original proposal, not the refined codebook", async () => {
+		const { session } = await setup();
+		await session.run({ review: pausingReviewGateway });
+		const proposal = await readFile(session.paths.codebookV1, "utf8");
+		await approveWithEdits(session);
+		expect((await session.run({ review: pausingReviewGateway })).status).toBe("completed");
+		const again = await session.run({ review: pausingReviewGateway, from: "codebook_review" });
+		expect(again.status).toBe("paused");
+		expect(await readFile(session.paths.codebookV1, "utf8")).toBe(proposal);
+		expect(await fileExists(session.paths.codebookProvenance)).toBe(false);
+	});
+
+	it("runs a stage that was skipped earlier once it is enabled, then everything after it", async () => {
+		const projectDir = await tempProject();
+		await writeCorpus(projectDir, gameReviews());
+		const base = { review: { enabled: false }, clustering: { kMin: 2, kMaxCap: 8 } } as const;
+		const make = (enrichment: boolean) =>
+			new RunSession({
+				projectDir,
+				config: testConfig({ ...base, enrichment: { enabled: enrichment } }),
+				gateway: new SimulatedGateway(),
+				embedder: new HashingEmbedder(),
+				retryBaseMs: 0,
+			});
+		const off = make(false);
+		await off.run({ review: pausingReviewGateway });
+		expect((await readJson<RunState>(off.paths.state)).stages.codebook_enrichment.status).toBe("skipped");
+		const on = make(true);
+		expect((await on.run({ review: pausingReviewGateway })).status).toBe("completed");
+		const state = await readJson<RunState>(on.paths.state);
+		expect(state.stages.codebook_enrichment.status).toBe("done");
+		expect(state.stages.dimension_enrichment.status).toBe("done");
+		expect((await readJson<CodebookFile>(on.paths.codebook)).codebook_enriched).toBeDefined();
+	});
+
+	it("rejects `from` after `until` without touching anything", async () => {
+		const { session } = await setup();
+		await expect(
+			session.run({ review: pausingReviewGateway, from: "hierarchy", until: "axial_clustering" }),
+		).rejects.toThrow(/comes after/);
+		expect(await fileExists(session.paths.state)).toBe(false);
+	});
+
+	it("does not start further stages once aborted", async () => {
+		const { session } = await setup();
+		const controller = new AbortController();
+		controller.abort();
+		const result = await session.run({ review: pausingReviewGateway, signal: controller.signal });
+		expect(result).toMatchObject({ status: "aborted", stage: "open_coding" });
+	});
+
 	it("stops after `until`", async () => {
 		const { session } = await setup();
 		const result = await session.run({ review: pausingReviewGateway, until: "axial_clustering" });
@@ -201,9 +281,11 @@ describe("full inductive pipeline (simulated model)", () => {
 		expect((await session.run({ review: pausingReviewGateway })).status).toBe("completed");
 		const clustered = await readJson<ClusteredCodesFile>(session.paths.clusteredCodes);
 		expect(clustered.clustering_method).toBe("llm");
-		expect(Object.values(clustered.cluster_theme_names ?? {})).toEqual(
+		const codebook = await readJson<CodebookFile>(session.paths.codebook);
+		expect(Object.values(codebook.codebook)).toEqual(
 			expect.arrayContaining(["Crash issues", "Lag issues", "Price issues", "Story issues"]),
 		);
+		expect(clustered.cluster_theme_names).toBeUndefined();
 		expect(gateway.calls.some((c) => c.skill === "high_level_code_generation")).toBe(false);
 		expect(await fileExists(join(session.paths.llmClusteringDir, "cluster_iter_0.json"))).toBe(true);
 	});

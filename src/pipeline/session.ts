@@ -151,7 +151,13 @@ export class RunSession {
 					corpus: () => this.corpus(),
 					progress,
 				}),
-				{ from: request.from, until: request.until, onEvent: request.onEvent },
+				{
+					from: request.from,
+					until: request.until,
+					onEvent: request.onEvent,
+					signal: request.signal,
+					config: this.config,
+				},
 			);
 		} finally {
 			await this.logger.flush();

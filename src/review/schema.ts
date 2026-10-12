@@ -73,11 +73,14 @@ export function buildV1(
 	const clusters: Record<string, ClusterEntry> = {};
 	for (const [cid, label] of Object.entries(codebook)) {
 		const conf = confidence[cid];
-		clusters[cid] = defaultClusterEntry(label, {
-			description: conf?.rationale ?? "",
-			confidence: Number(conf?.confidence ?? 1) || 1,
-			source: "llm",
-		});
+		clusters[cid] = {
+			...defaultClusterEntry(label, {
+				description: conf?.rationale ?? "",
+				confidence: Number(conf?.confidence ?? 1) || 1,
+				source: conf?.source ?? "llm",
+			}),
+			needs_more_evidence: conf?.needs_more_evidence ?? false,
+		};
 	}
 	return {
 		version: 1,

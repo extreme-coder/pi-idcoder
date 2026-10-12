@@ -1,6 +1,8 @@
 import { rm } from "node:fs/promises";
 import type { RunPaths } from "../artifacts/paths.ts";
+import type { IdcoderConfig } from "../config/schema.ts";
 import { AbortedError } from "../core/concurrency.ts";
+import { deleteSnapshot, hasSnapshot, restoreSnapshot, takeSnapshot } from "./snapshots.ts";
 import { STAGE_IDS, type Stage, type StageContext, type StageId, type StageProgress } from "./stage.ts";
 import { type RunState, resetFrom, saveState } from "./state.ts";
 
@@ -22,6 +24,16 @@ export interface RunOptions {
 	/** Stop after this stage completes. */
 	until?: StageId | undefined;
 	onEvent?: ((event: RunEvent) => void) | undefined;
+	signal?: AbortSignal | undefined;
+	/** Lets the runner notice stages that were skipped earlier but are enabled now. */
+	config?: IdcoderConfig | undefined;
+}
+
+export class RunOptionsError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = "RunOptionsError";
+	}
 }
 
 export class PipelineRunner {
@@ -46,20 +58,31 @@ export class PipelineRunner {
 		options: RunOptions = {},
 	): Promise<RunResult> {
 		const statePath = paths.state;
-		if (options.from) {
-			resetFrom(state, options.from);
-			const start = STAGE_IDS.indexOf(options.from);
-			for (const stage of this.stages.filter((s) => STAGE_IDS.indexOf(s.id) >= start)) {
-				for (const file of stage.checkpoints?.(paths) ?? []) await rm(file, { force: true });
-			}
+		const position = (id: StageId) => STAGE_IDS.indexOf(id);
+		if (options.from && options.until && position(options.from) > position(options.until)) {
+			throw new RunOptionsError(
+				`\`from\` (${options.from}) comes after \`until\` (${options.until}); nothing would run.`,
+			);
 		}
+		const reenabled = options.config
+			? this.stages.find((s) => state.stages[s.id].status === "skipped" && s.enabled(options.config!))?.id
+			: undefined;
+		const restart = [options.from, reenabled]
+			.filter((id): id is StageId => id !== undefined)
+			.sort((a, b) => position(a) - position(b))[0];
+		if (restart) await this.reset(state, paths, restart);
+
 		const emit = options.onEvent ?? (() => {});
-		const untilIndex = options.until ? STAGE_IDS.indexOf(options.until) : Number.POSITIVE_INFINITY;
+		const untilIndex = options.until ? position(options.until) : Number.POSITIVE_INFINITY;
 
 		for (const [index, stage] of this.stages.entries()) {
-			if (STAGE_IDS.indexOf(stage.id) > untilIndex) break;
+			if (position(stage.id) > untilIndex) break;
 			const record = state.stages[stage.id];
 			if (record.status === "done" || record.status === "skipped") continue;
+			if (options.signal?.aborted) {
+				await saveState(statePath, state);
+				return { status: "aborted", stage: stage.id, state };
+			}
 
 			const ctx = makeContext(stage, (progress) => emit({ type: "stage_progress", stage: stage.id, progress }));
 			if (!stage.enabled(ctx.config)) {
@@ -68,6 +91,9 @@ export class PipelineRunner {
 				emit({ type: "stage_end", stage: stage.id, status: "skipped", summary: "disabled by config" });
 				continue;
 			}
+
+			if (await hasSnapshot(paths, stage.id)) await restoreSnapshot(paths, stage.id);
+			else await takeSnapshot(paths, stage.id);
 
 			const startedAt = new Date().toISOString();
 			state.stages[stage.id] = { status: "running", startedAt };
@@ -114,5 +140,23 @@ export class PipelineRunner {
 			}
 		}
 		return { status: "completed", state };
+	}
+
+	/**
+	 * Resets `from` and everything after it: checkpoints are deleted, and the in-place artifacts are
+	 * restored from the earliest snapshot at or after `from` (skipped stages take none), so the
+	 * stage sees exactly the inputs it would see on a fresh run.
+	 */
+	private async reset(state: RunState, paths: RunPaths, from: StageId): Promise<void> {
+		resetFrom(state, from);
+		const affected = this.stages.filter((s) => STAGE_IDS.indexOf(s.id) >= STAGE_IDS.indexOf(from));
+		for (const stage of affected) {
+			for (const file of stage.checkpoints?.(paths) ?? []) await rm(file, { force: true });
+		}
+		for (const stage of affected) {
+			if (await restoreSnapshot(paths, stage.id)) break;
+		}
+		for (const stage of affected) await deleteSnapshot(paths, stage.id);
+		await saveState(paths.state, state);
 	}
 }
