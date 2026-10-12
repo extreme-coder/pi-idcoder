@@ -1,3 +1,4 @@
+import { appendTo } from "../../src/core/collections.ts";
 import type { GatewayRequest, GatewayResponse, ModelGateway } from "../../src/llm/gateway.ts";
 import type { LlmClient, LlmRequest, LlmResponse } from "../../src/llm/types.ts";
 import { ONE_CALL_USAGE } from "./fake-llm.ts";
@@ -135,7 +136,7 @@ function hierarchy(prompt: string): string {
 
 function metaThemes(prompt: string): string {
 	const json = between(prompt, "mapping cluster IDs to their labels:\n\n", "\n\nYour task");
-	const ids = Object.keys(JSON.parse(between(json, "", "\n}") + "\n}") as Record<string, string>).sort(
+	const ids = Object.keys(JSON.parse(`${between(json, "", "\n}")}\n}`) as Record<string, string>).sort(
 		(a, b) => Number(a) - Number(b),
 	);
 	const groups = Math.min(3, ids.length);
@@ -179,9 +180,30 @@ function llmClustering(prompt: string): string {
 	for (const labelText of labels) {
 		const theme = Object.keys(THEMES).find((t) => labelText.toLowerCase().includes(t)) ?? labelText;
 		const key = `${theme[0]!.toUpperCase()}${theme.slice(1)} issues`;
-		(groups[key] ??= []).push(labelText);
+		appendTo(groups, key, labelText);
 	}
 	return JSON.stringify(groups);
+}
+
+function recode(prompt: string): string {
+	const letters = [...prompt.matchAll(/^\[([A-Z])\] LABEL:/gm)].map((m) => m[1]!);
+	const quotes = [...between(prompt, "QUOTES TO CLASSIFY:", "---\nFor EACH quote").matchAll(/^(\d+)\. "(.*)"$/gm)];
+	const choices = [...letters, "NONE"];
+	return JSON.stringify({
+		classifications: quotes.map((m) => ({
+			quote_index: Number(m[1]),
+			meta_theme: choices[hash(m[2]!) % choices.length],
+		})),
+	});
+}
+
+function judge(prompt: string): string {
+	const fourWay = prompt.includes('"A", "B", "BOTH", or "NEITHER"');
+	const picks = fourWay ? ["A", "B", "BOTH", "NEITHER"] : ["A", "B"];
+	const quotes = [...prompt.matchAll(/^(\d+)\. QUOTE: "(.*)"$/gm)];
+	return JSON.stringify({
+		verdicts: quotes.map((m) => ({ item_index: Number(m[1]), pick: picks[hash(m[2]!) % picks.length] })),
+	});
 }
 
 export function simulate(request: Pick<LlmRequest, "skill" | "prompt">): string {
@@ -211,6 +233,10 @@ export function simulate(request: Pick<LlmRequest, "skill" | "prompt">): string 
 			return hierarchyRefine(p);
 		case "llm_clustering":
 			return llmClustering(p);
+		case "deductive_recode":
+			return recode(p);
+		case "disagreement_judge":
+			return judge(p);
 		case "research_report":
 			return "## Research question\nWhat frustrates players?\n\n## Graph structure\nSimulated.\n\n## Research answer\nPlayers are frustrated by crashes, lag, prices, and story.";
 		default:
@@ -280,6 +306,8 @@ const SKILL_MARKERS: Array<[string, string]> = [
 /** Recovers the pipeline skill from prompt text, as a real model would only ever see text. */
 export function inferSkill(system: string, prompt: string): string {
 	if (system.startsWith("Synthesize the entire list of labels")) return "llm_clustering";
+	if (system.startsWith("You are a qualitative coding expert applying")) return "deductive_recode";
+	if (system.startsWith("You are a qualitative research expert judging")) return "disagreement_judge";
 	const found = SKILL_MARKERS.find(([marker]) => prompt.includes(marker));
 	if (!found) throw new Error(`SimulatedGateway cannot infer the skill for prompt: ${prompt.slice(0, 120)}`);
 	return found[1];

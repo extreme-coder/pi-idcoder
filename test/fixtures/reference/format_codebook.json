@@ -1,0 +1,42 @@
+{
+ "entries": [
+  {
+   "label": "Performance",
+   "definition": "Speed issues.",
+   "inclusion": [
+    {
+     "criterion": "Mentions lag.",
+     "code_ids": [
+      "CL00"
+     ],
+     "examples": [
+      "x"
+     ]
+    }
+   ],
+   "exclusion": [
+    {
+     "criterion": "Not price.",
+     "code_ids": [
+      "CL01"
+     ]
+    }
+   ],
+   "cluster_ids": [
+    "0"
+   ]
+  },
+  {
+   "label": "Monetization",
+   "definition": "Prices.",
+   "inclusion": [],
+   "exclusion": [],
+   "cluster_ids": [
+    "1"
+   ]
+  }
+ ],
+ "theme_only": "[A] LABEL: Performance\n\n[B] LABEL: Monetization",
+ "theme_def": "[A] LABEL: Performance\n    DEFINITION: Speed issues.\n\n[B] LABEL: Monetization\n    DEFINITION: Prices.",
+ "full": "[A] LABEL: Performance\n    DEFINITION: Speed issues.\n    INCLUSION CRITERIA:\n      - Mentions lag.\n    EXCLUSION CRITERIA:\n      - Not price.\n\n[B] LABEL: Monetization\n    DEFINITION: Prices."
+}
