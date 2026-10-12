@@ -21,11 +21,11 @@ The offline suite (properties 1–4) is deterministic, needs no network or keys,
 | Layer | Location | Tests | Oracle | Runs |
 |---|---|---|---|---|
 | L0 Static | `tsc --strict` (incl. `noUncheckedIndexedAccess`), Biome | — | Compiler, linter | Every commit |
-| L1 Units | `test/{core,config,llm,embeddings,cluster,evidence,review,viewer}` | 175 | Reference oracles (below) | Every commit |
+| L1 Units | `test/{core,config,llm,embeddings,cluster,evidence,review,viewer}` | 183 | Reference oracles (below) | Every commit |
 | L2 Golden prompts | `test/prompts` | 30 | The original Python functions, byte for byte | Every commit |
 | L3 Properties | `test/properties` | 8 (×50–200 generated cases each) | Invariants | Every commit |
-| L4 Stage contracts | `test/stages` | 84 | Scripted model, fault injection, ported pytest cases | Every commit |
-| L5 Pipeline e2e | `test/pipeline`, `test/evaluation` | 43 | Deterministic simulated model | Every commit |
+| L4 Stage contracts | `test/stages` | 86 | Scripted model, fault injection, ported pytest cases | Every commit |
+| L5 Pipeline e2e | `test/pipeline`, `test/evaluation` | 50 | Deterministic simulated model | Every commit |
 | L6 UI | `test/ui` | 18 | Pure reducers, width contract, scripted flows | Every commit |
 | L7 Extension | `test/extension` | 29 | Fake pi API, scripted UI | Every commit |
 | L8 Real pi | `test/integration` | 5 | The pi binary over RPC with a mock OpenAI endpoint | Every commit |
@@ -33,7 +33,7 @@ The offline suite (properties 1–4) is deterministic, needs no network or keys,
 | L10 Live models | `test/live` (`npm run test:live`) | 5 | Invariants on real outputs, cost budget | Manual / nightly with secrets |
 | L11 Parity & validity | Protocol in this document | — | The Python pipeline and the paper's results | Before each release |
 
-`npm run check` runs L0–L8: typecheck, lint, and 392 tests, all offline.
+`npm run check` runs L0–L8: typecheck, lint, and 409 tests, all offline.
 
 ## Oracles
 
@@ -121,6 +121,8 @@ The full 14-stage pipeline runs on 32 synthetic reviews through the real `RunSes
 - **Resume.** Pause at the gate, resume after a researcher's edits, complete. Re-running is free: zero new model calls.
 - **Run controls.** `from` recomputes only downstream stages. `until` stops early.
 - **Failure and abort.** A mid-pipeline failure is recorded and resumes without redoing finished stages. An abort mid-open-coding resumes from the checkpoint and never re-codes a finished document.
+- **Re-runs reproduce fresh runs.** Stages that rewrite shared artifacts in place (review, refinement, enrichment, hierarchy refinement) get a snapshot of those files before they first run. Retries and `from` restore it. The test makes refinement actually move codes, and fails without the snapshots.
+- **Re-review and re-enabling.** Re-review receives the original proposal, not the refined codebook. A stage skipped earlier runs once it is enabled. `from` after `until` is rejected. No stage starts after an abort.
 - **Alternatives and validation.** HICode-style LLM clustering. Model-reference validation happens before any work.
 - **Artifacts.** Every downstream artifact is checked for structural integrity:
   - every clustered code appears as a tree leaf
@@ -256,7 +258,7 @@ Automated tests cover rendering contracts and flows. These checks need eyes:
 
 ## Coverage, mutation testing, CI
 
-- **Coverage** (`npm run test:coverage`, v8), in-process: 97.7% lines, 95.6% statements, 96.2% functions, 82.9% branches. Thresholds are enforced at 85/85/75/85 (lines/functions/branches/statements). `PiModelGateway` is additionally covered across the process boundary by L8, which in-process coverage cannot see.
+- **Coverage** (`npm run test:coverage`, v8), in-process: 97.8% lines, 95.8% statements, 96.4% functions, 83.2% branches. Thresholds are enforced at 85/85/75/85 (lines/functions/branches/statements). `PiModelGateway` is additionally covered across the process boundary by L8, which in-process coverage cannot see.
 - **Mutation testing (recommended).** Run Stryker on `src/cluster`, `src/evaluation/krippendorff.ts`, `src/review/apply.ts`, `src/review/session.ts`, and `src/core/json.ts`, targeting a ≥ 80% mutation score. These modules have strong oracles, so surviving mutants indicate missing assertions rather than equivalent mutants.
 - **CI matrix:**
 
@@ -271,8 +273,9 @@ Automated tests cover rendering contracts and flows. These checks need eyes:
 
 | Layer | Status |
 |---|---|
-| L0–L8 | Implemented, run locally on macOS with Node 22.22.1 and pi 1.1.0: **392 passed, 0 failed**. Lint and strict typecheck clean |
+| L0–L8 | Implemented, run locally on macOS with Node 22.22.1 and pi 1.1.0: **409 passed, 0 failed**. Lint and strict typecheck clean |
 | L9 | Implemented and run once locally: both published viewer releases patch successfully |
+| Independent review | A separate code review found 13 issues: 3 high (`from` compounding in-place rewrites; positional disagreement ids; recode checkpoints not tied to the codebook), 4 medium including CSRF on the viewer approval endpoint, and 6 low. All were confirmed, fixed, and covered by regression tests |
 | L10 | Implemented and typechecked, **not executed**: no OpenRouter key was available. Default model ids are examples; confirm them against pi's catalog before the first run |
 | L11 | **Protocol only**: needs real models, the Python pipeline's runtime (SGLang + GPU), and the paper's datasets |
 | Real-terminal TUI | Run once locally with `test/manual/tui-smoke.py`: the review screen renders in pi's interactive TUI, and rename, approve, and the resume prompt work end to end |

@@ -164,6 +164,8 @@ Behaviour is preserved. Every prompt template is golden-tested byte for byte aga
   - Hard truncation of the report graph is flagged.
   - `MOVE` lines also accept `->`.
 - **Paper features beyond the repo.** Four-way judging (prefer A / prefer B / both / neither), human judging with a shared sample for inter-annotator α, and Krippendorff's α computed in code (validated against Krippendorff 2011 and the `krippendorff` package).
+- **Re-runs.** `run --from <stage>` restores the artifacts that stage originally read (snapshots of files rewritten in place), so a re-run reproduces a fresh run instead of re-refining refined clusters. Checkpoints are keyed to the inputs and settings that shape them: text, research question, models, and codebook.
+- **Viewer safety.** The local approval endpoint only accepts same-origin JSON submissions. Approvals that reference codes outside the run are refused.
 - **Robustness.** Transient provider errors are retried with exponential backoff. Usage and cost are accounted per call and reported to pi. Partial enrichment results are checkpointed, so one failing cluster no longer forces the whole stage to rerun.
 
 ## Development
