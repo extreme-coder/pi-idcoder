@@ -209,7 +209,6 @@ export const EvaluationSchema = Type.Object(
 				maxRounds: Int(0, 50, 8),
 				maxRetries: Int(0, 10, 2),
 				includeReasoning: Type.Boolean({ default: false }),
-				dimensionsFile: Type.Union([Type.Literal("sampled"), Type.Literal("full")], { default: "sampled" }),
 			},
 			{ additionalProperties: false, default: {} },
 		),
