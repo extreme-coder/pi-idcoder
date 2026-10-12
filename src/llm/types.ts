@@ -72,9 +72,11 @@ export class LlmError extends Error {
 	}
 }
 
-const TRANSIENT =
-	/\b(429|5\d\d)\b|rate.?limit|overloaded|timed? ?out|timeout|ECONNRESET|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|socket hang up|connection|temporar|unavailable|fetch failed/i;
+/** HTTP 429/5xx only where a status code is expected (message start, or after status/http/code/error). */
+const TRANSIENT_STATUS = /(?:^|\b(?:status|http|code|error)\b[\s:=]{0,3})(?:429|50[0-4]|52\d)\b/i;
+const TRANSIENT_TEXT =
+	/rate.?limit|too many requests|overloaded|timed? ?out|timeout|ECONNRESET|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|socket hang up|connection (?:reset|refused|closed|error|terminated|timed out|lost)|network error|temporar(?:il)?y|service unavailable|bad gateway|fetch failed/i;
 
 export function isTransientMessage(message: string): boolean {
-	return TRANSIENT.test(message);
+	return TRANSIENT_STATUS.test(message.trim()) || TRANSIENT_TEXT.test(message);
 }

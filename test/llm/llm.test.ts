@@ -174,6 +174,13 @@ describe("isTransientMessage", () => {
 		["fetch failed", true],
 		["Invalid API key", false],
 		["context length exceeded", false],
+		["HTTP 502 Bad Gateway", true],
+		["Provider error status: 500", true],
+		["Connection reset by peer", true],
+		["400 prompt is 590 tokens over the 512 limit", false],
+		["Invalid connection settings for model", false],
+		["model returned 529 tokens", false],
+		["error: 529 overloaded", true],
 	])("%s", (message, expected) => {
 		expect(isTransientMessage(message)).toBe(expected);
 	});

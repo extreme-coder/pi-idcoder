@@ -1,13 +1,14 @@
-import { createHash } from "node:crypto";
 import type { CodebookConfidenceFile, ConfidenceEntry } from "../artifacts/types.ts";
 import type { IdcoderConfig } from "../config/schema.ts";
 import { mapConcurrent } from "../core/concurrency.ts";
 import { appendJsonl, readJsonl } from "../core/fs.ts";
+import { fingerprint } from "../core/hash.ts";
 import { sortClusterIds } from "../core/ids.ts";
 import { asClampedInt, asString, parseJsonObject } from "../core/json.ts";
 import type { Logger } from "../core/logger.ts";
 import type { Rng } from "../core/random.ts";
 import { bulleted } from "../core/text.ts";
+import { modelRefForRole } from "../llm/service.ts";
 import type { LlmClient } from "../llm/types.ts";
 import { done, type Stage } from "../pipeline/stage.ts";
 import { highLevelCodeGenerationPrompt, highLevelSynthesisPrompt } from "../prompts/pipeline.ts";
@@ -134,10 +135,6 @@ export async function labelBySampling(
 	}
 }
 
-function codesHash(codes: readonly string[]): string {
-	return createHash("sha256").update(JSON.stringify(codes)).digest("hex").slice(0, 16);
-}
-
 export const labelingStage: Stage = {
 	id: "cluster_labeling",
 	title: "Cluster labeling",
@@ -177,6 +174,15 @@ export const labelingStage: Stage = {
 			signal: ctx.signal,
 		};
 		const strategy = ctx.config.labeling.strategy;
+		const settingsKey = fingerprint(
+			ctx.config.study.researchQuestion,
+			ctx.config.labeling.strategy,
+			ctx.config.labeling.samples,
+			ctx.config.labeling.sampleSize,
+			ctx.config.seed,
+			modelRefForRole(ctx.config.models, "coder"),
+		);
+		const codesHash = (codes: readonly string[]) => fingerprint(settingsKey, codes);
 		const pending = ids.filter((id) => restored.get(id)?.codes_hash !== codesHash(ctc[id] ?? []));
 		ctx.logger.info(
 			"HIGH_LEVEL_STRATEGY",

@@ -1,25 +1,19 @@
-import { createHash } from "node:crypto";
 import { ENRICHED_SCHEMA_VERSION, type EnrichedEntry } from "../artifacts/types.ts";
 import { mapConcurrent } from "../core/concurrency.ts";
 import { appendJsonl, readJsonl, writeJson } from "../core/fs.ts";
+import { fingerprint } from "../core/hash.ts";
 import { sortClusterIds } from "../core/ids.ts";
 import { enrichCluster } from "../enrichment/codebook.ts";
 import { entryFailed } from "../enrichment/criteria.ts";
 import { assignOpenCodeIds, codeIdMapFile, shortLabel } from "../evidence/code-evidence.ts";
 import { loadOrBuildSourceMemory } from "../evidence/source-memory.ts";
+import { modelRefForRole } from "../llm/service.ts";
 import { done, type Stage } from "../pipeline/stage.ts";
 
 interface EnrichmentCheckpoint {
 	cluster_id: string;
 	input_hash: string;
 	entry: EnrichedEntry;
-}
-
-function inputHash(label: string, codes: readonly string[]): string {
-	return createHash("sha256")
-		.update(JSON.stringify([label, codes]))
-		.digest("hex")
-		.slice(0, 16);
 }
 
 export const codebookEnrichmentStage: Stage = {
@@ -46,6 +40,8 @@ export const codebookEnrichmentStage: Stage = {
 		});
 		const evidence = memory.evidenceByCode();
 
+		const settingsKey = fingerprint(ctx.config.enrichment, modelRefForRole(ctx.config.models, "enrichment"));
+		const inputHash = (label: string, codes: readonly string[]) => fingerprint(settingsKey, label, codes);
 		const restored = new Map<string, EnrichmentCheckpoint>();
 		for (const row of await readJsonl<EnrichmentCheckpoint>(ctx.paths.enrichmentCheckpoint))
 			restored.set(row.cluster_id, row);

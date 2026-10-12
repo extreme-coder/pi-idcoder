@@ -3,9 +3,11 @@ import type { CodesOnlyFile, ReviewCodes } from "../artifacts/types.ts";
 import type { IdcoderConfig } from "../config/schema.ts";
 import { mapConcurrent } from "../core/concurrency.ts";
 import { appendJsonl, readJsonl } from "../core/fs.ts";
+import { fingerprint } from "../core/hash.ts";
 import { removeThinkTags } from "../core/json.ts";
 import { extractCodes } from "../core/text.ts";
 import type { CorpusDocument } from "../corpus/load.ts";
+import { modelRefForRole } from "../llm/service.ts";
 import type { LlmClient } from "../llm/types.ts";
 import { done, type Stage } from "../pipeline/stage.ts";
 import { openCodingPrompt, validateOpenCodesPrompt } from "../prompts/pipeline.ts";
@@ -107,7 +109,16 @@ export const openCodingStage: Stage = {
 		for (const row of await readJsonl<CodedDocument>(ctx.paths.openCodingCheckpoint)) {
 			checkpoint.set(row.review_id, row);
 		}
-		const pending = docs.filter((d) => checkpoint.get(d.reviewId)?.text_hash !== textHash(d.text));
+		// a checkpoint only counts for the same text, question, models, and validator settings
+		const settingsKey = fingerprint(
+			rq,
+			settings.validator,
+			settings.maxRetries,
+			modelRefForRole(ctx.config.models, "coder"),
+			settings.validator ? modelRefForRole(ctx.config.models, "validator") : null,
+		);
+		const inputKey = (doc: CorpusDocument) => fingerprint(settingsKey, doc.text);
+		const pending = docs.filter((d) => checkpoint.get(d.reviewId)?.text_hash !== inputKey(d));
 		ctx.logger.info(
 			"OPEN_CODING",
 			`${docs.length} documents, ${docs.length - pending.length} restored from checkpoint, validator ${settings.validator ? "on" : "off"}`,
@@ -115,7 +126,11 @@ export const openCodingStage: Stage = {
 
 		let finished = docs.length - pending.length;
 		ctx.progress({ done: finished, total: docs.length });
-		await mapConcurrent(pending, settings.workers, (doc) => codeDocument(ctx.llm, rq, doc, settings, ctx.signal), {
+		const code = async (doc: CorpusDocument) => ({
+			...(await codeDocument(ctx.llm, rq, doc, settings, ctx.signal)),
+			text_hash: inputKey(doc),
+		});
+		await mapConcurrent(pending, settings.workers, code, {
 			signal: ctx.signal,
 			onResult: async (coded) => {
 				checkpoint.set(coded.review_id, coded);

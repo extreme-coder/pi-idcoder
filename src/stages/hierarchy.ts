@@ -1,22 +1,16 @@
-import { createHash } from "node:crypto";
 import type { HierarchyEntry } from "../artifacts/types.ts";
 import { mapConcurrent } from "../core/concurrency.ts";
 import { appendJsonl, readJsonl } from "../core/fs.ts";
+import { fingerprint } from "../core/hash.ts";
 import { sortClusterIds } from "../core/ids.ts";
 import { buildClusterHierarchy } from "../hierarchy/build.ts";
+import { modelRefForRole } from "../llm/service.ts";
 import { done, type Stage } from "../pipeline/stage.ts";
 
 interface HierarchyCheckpoint {
 	cluster_id: string;
 	input_hash: string;
 	entry: HierarchyEntry;
-}
-
-function inputHash(label: string, codes: readonly string[]): string {
-	return createHash("sha256")
-		.update(JSON.stringify([label, codes]))
-		.digest("hex")
-		.slice(0, 16);
 }
 
 export const hierarchyStage: Stage = {
@@ -30,6 +24,12 @@ export const hierarchyStage: Stage = {
 		const ids = sortClusterIds(Object.keys(ctc));
 		if (ids.length === 0) throw new Error("No cluster_to_codes in codebook.json.");
 		const labelOf = (id: string) => cb.codebook[id] ?? `Cluster ${id}`;
+		const settingsKey = fingerprint(
+			ctx.config.study.researchQuestion,
+			ctx.config.hierarchy,
+			modelRefForRole(ctx.config.models, "coder"),
+		);
+		const inputHash = (label: string, codes: readonly string[]) => fingerprint(settingsKey, label, codes);
 
 		const restored = new Map<string, HierarchyCheckpoint>();
 		for (const row of await readJsonl<HierarchyCheckpoint>(ctx.paths.hierarchyCheckpoint))

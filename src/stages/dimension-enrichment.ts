@@ -5,6 +5,7 @@ import { appendJsonl, readJsonl } from "../core/fs.ts";
 import { entryFailed } from "../enrichment/criteria.ts";
 import { enrichDimension } from "../enrichment/dimensions.ts";
 import { loadOrBuildSourceMemory } from "../evidence/source-memory.ts";
+import { modelRefForRole } from "../llm/service.ts";
 import { done, type Stage } from "../pipeline/stage.ts";
 
 interface DimensionCheckpoint {
@@ -31,7 +32,14 @@ export const dimensionEnrichmentStage: Stage = {
 		const { quotes } = memory.evidenceByCode();
 		const hashOf = (i: number) =>
 			createHash("sha256")
-				.update(JSON.stringify([evidenceMode, meta_themes[i], cb.cluster_to_codes]))
+				.update(
+					JSON.stringify([
+						ctx.config.enrichment,
+						modelRefForRole(ctx.config.models, "enrichment"),
+						meta_themes[i],
+						cb.cluster_to_codes,
+					]),
+				)
 				.digest("hex")
 				.slice(0, 16);
 

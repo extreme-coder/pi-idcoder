@@ -100,6 +100,30 @@ describe("open coding", () => {
 	});
 });
 
+describe("checkpoint keys", () => {
+	it("re-code documents when the research question or coding model changes", async () => {
+		const llm = new ScriptedLlm({ open_coding: "- Code: x" });
+		const docs = [doc(1, "same text")];
+		const ctx = await makeContext({ llm, documents: docs });
+		await openCodingStage.run(ctx);
+		await openCodingStage.run(await makeContext({ llm, projectDir: ctx.projectDir, documents: docs }));
+		expect(llm.calls).toHaveLength(1);
+		const otherQuestion = testConfig({ study: { researchQuestion: "A different question?" } });
+		await openCodingStage.run(
+			await makeContext({ llm, projectDir: ctx.projectDir, documents: docs, config: otherQuestion }),
+		);
+		expect(llm.calls).toHaveLength(2);
+		const otherModel = testConfig({
+			study: { researchQuestion: "A different question?" },
+			models: { coder: "x/other" },
+		});
+		await openCodingStage.run(
+			await makeContext({ llm, projectDir: ctx.projectDir, documents: docs, config: otherModel }),
+		);
+		expect(llm.calls).toHaveLength(3);
+	});
+});
+
 describe("cluster labeling", () => {
 	const deps = (
 		llm: ScriptedLlm,
