@@ -15,13 +15,13 @@ export const plainStyler: Styler = {
 	bold: (text) => text,
 };
 
-export function fit(text: string, width: number): string {
+export function clip(text: string, width: number): string {
 	return truncateToWidth(text, Math.max(1, width));
 }
 
 export function pad(text: string, width: number): string {
 	const w = visibleWidth(text);
-	return w >= width ? fit(text, width) : text + " ".repeat(width - w);
+	return w >= width ? clip(text, width) : text + " ".repeat(width - w);
 }
 
 export function wrap(text: string, width: number, prefix = ""): string[] {
@@ -31,7 +31,7 @@ export function wrap(text: string, width: number, prefix = ""): string[] {
 
 export function rule(styler: Styler, width: number, title = ""): string {
 	if (!title || width < 8) return styler.fg("border", "─".repeat(Math.max(1, width)));
-	const label = ` ${fit(title, width - 4)} `;
+	const label = ` ${clip(title, width - 4)} `;
 	return (
 		styler.fg("border", "──") +
 		styler.fg("accent", label) +

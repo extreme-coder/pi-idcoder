@@ -1,5 +1,5 @@
 import { matchesKey } from "@earendil-works/pi-tui";
-import { fit, pad, rule, type Styler, scrollWindow, wrap } from "./styler.ts";
+import { clip, pad, rule, type Styler, scrollWindow, wrap } from "./styler.ts";
 
 export interface ChecklistState {
 	cursor: number;
@@ -59,11 +59,11 @@ export function renderChecklist(
 		const index = state.offset + i;
 		const box = state.checked.has(index) ? styler.fg("success", "[x]") : styler.fg("muted", "[ ]");
 		const row = `${index === state.cursor ? styler.fg("accent", "› ") : "  "}${box} ${item}`;
-		lines.push(index === state.cursor ? styler.bg("selectedBg", pad(fit(row, width), width)) : fit(row, width));
+		lines.push(index === state.cursor ? styler.bg("selectedBg", pad(clip(row, width), width)) : clip(row, width));
 	});
 	if (items.length > CHECKLIST_ROWS) {
 		lines.push(
-			fit(
+			clip(
 				styler.fg(
 					"dim",
 					`  ${state.offset + 1}–${Math.min(items.length, state.offset + CHECKLIST_ROWS)} of ${items.length}`,

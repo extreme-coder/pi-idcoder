@@ -1,7 +1,7 @@
 import { type KeyId, matchesKey } from "@earendil-works/pi-tui";
 import type { CodeEvidenceFile } from "../evidence/code-evidence.ts";
 import type { ClusterView, ReviewSession } from "../review/session.ts";
-import { fit, pad, rule, type Styler, scrollWindow, wrap } from "./styler.ts";
+import { clip, pad, rule, type Styler, scrollWindow, wrap } from "./styler.ts";
 
 export type ReviewAction =
 	| "rename"
@@ -135,12 +135,12 @@ export function renderReview(
 		const selected = index === state.clusterIndex;
 		const marker = selected ? styler.fg("accent", state.focus === "clusters" ? "▶ " : "▷ ") : "  ";
 		const label = cluster.entry.status === "drop" ? styler.fg("dim", cluster.entry.label) : cluster.entry.label;
-		const row = `${marker}${confidenceBadge(styler, cluster.entry.confidence)} ${pad(fit(label, labelWidth - 8), labelWidth - 8)} ${styler.fg("muted", `${cluster.codes.length} codes`)}`;
-		lines.push(selected ? styler.bg("selectedBg", pad(row, width)) : fit(row, width));
+		const row = `${marker}${confidenceBadge(styler, cluster.entry.confidence)} ${pad(clip(label, labelWidth - 8), labelWidth - 8)} ${styler.fg("muted", `${cluster.codes.length} codes`)}`;
+		lines.push(selected ? styler.bg("selectedBg", pad(row, width)) : clip(row, width));
 	});
 	if (clusters.length > LIST_ROWS) {
 		lines.push(
-			fit(
+			clip(
 				styler.fg(
 					"dim",
 					`  ${state.clusterOffset + 1}–${Math.min(clusters.length, state.clusterOffset + LIST_ROWS)} of ${clusters.length}`,
@@ -153,7 +153,7 @@ export function renderReview(
 	const current = clusters[state.clusterIndex];
 	if (current) {
 		lines.push(rule(styler, width, `Cluster ${current.id}`));
-		lines.push(fit(`${styler.bold(current.entry.label)}  ${provenanceTag(styler, current)}`, width));
+		lines.push(clip(`${styler.bold(current.entry.label)}  ${provenanceTag(styler, current)}`, width));
 		if (current.entry.description) lines.push(...wrap(styler.fg("muted", current.entry.description), width, "  "));
 		const visible = current.codes.slice(state.codeOffset, state.codeOffset + CODE_ROWS);
 		visible.forEach((code, i) => {
@@ -161,11 +161,11 @@ export function renderReview(
 			const active = state.focus === "codes" && index === state.codeIndex;
 			const quotes = evidence?.by_open_code[code]?.quote_count;
 			const row = `${active ? styler.fg("accent", "› ") : "  "}${code}${quotes ? styler.fg("dim", ` (${quotes})`) : ""}`;
-			lines.push(active ? styler.bg("selectedBg", pad(fit(row, width), width)) : fit(row, width));
+			lines.push(active ? styler.bg("selectedBg", pad(clip(row, width), width)) : clip(row, width));
 		});
 		if (current.codes.length > CODE_ROWS) {
 			lines.push(
-				fit(
+				clip(
 					styler.fg(
 						"dim",
 						`  codes ${state.codeOffset + 1}–${Math.min(current.codes.length, state.codeOffset + CODE_ROWS)} of ${current.codes.length}`,
@@ -179,7 +179,7 @@ export function renderReview(
 		if (quote) lines.push(...wrap(styler.fg("muted", `“${quote}”`), width, "    "));
 	}
 
-	if (state.message) lines.push(styler.fg("warning", fit(state.message, width)));
+	if (state.message) lines.push(styler.fg("warning", clip(state.message, width)));
 	lines.push(rule(styler, width));
 	lines.push(
 		...wrap(
