@@ -164,7 +164,5 @@ evaluation/summary.json  summary.md
 npm install
 npm run check          # typecheck + lint + all offline tests (including real pi over RPC)
 npm run test:coverage  # coverage with thresholds
-npm run test:live      # real models via OpenRouter (needs OPENROUTER_API_KEY); see TESTING.md
+npm run test:live      # real models via OpenRouter (needs OPENROUTER_API_KEY)
 ```
-
-TESTING.md describes the test strategy, what each layer proves, and the protocol for checking research validity against the paper.

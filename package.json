@@ -18,8 +18,7 @@
 		"extensions",
 		"src",
 		"skills",
-		"README.md",
-		"TESTING.md"
+		"README.md"
 	],
 	"pi": {
 		"extensions": [

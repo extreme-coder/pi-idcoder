@@ -23,7 +23,7 @@ import { PiRpc, piAvailable } from "../helpers/pi-rpc.ts";
 /**
  * Live suite: real models through OpenRouter, driven through the real pi binary. Assertions are
  * invariants that must hold for any competent model, never exact outputs. Opt in with
- * `npm run test:live` and OPENROUTER_API_KEY; see TESTING.md for budgets and model choices.
+ * `npm run test:live` and OPENROUTER_API_KEY.
  */
 const env = process.env;
 const enabled = Boolean(env.IDCODER_LIVE && env.OPENROUTER_API_KEY && piAvailable);
