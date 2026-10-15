@@ -3,3 +3,4 @@ coverage/
 .idcoder/
 *.log
 .DS_Store
+TESTING.md
