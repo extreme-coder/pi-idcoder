@@ -50,7 +50,7 @@ export function defaultControllerDeps(
 	configFlag: () => string | undefined,
 ): ControllerDeps {
 	return {
-		gatewayFor: (ctx) => new PiModelGateway(ctx.modelRegistry, ctx.model),
+		gatewayFor: (ctx) => new PiModelGateway(ctx.modelRegistry, ctx.model, ctx.sessionManager.getSessionId()),
 		embedderFor: (config) => createEmbedder(config.embeddings),
 		viewer,
 		openUrl,

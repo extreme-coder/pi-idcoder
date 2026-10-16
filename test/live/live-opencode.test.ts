@@ -9,9 +9,11 @@ import type {
 	DimensionsEnrichedFile,
 	MetaThemesFile,
 } from "../../src/artifacts/types.ts";
+import { resolveConfig } from "../../src/config/load.ts";
 import { readJson, readJsonl, writeJson } from "../../src/core/fs.ts";
 import { squashWhitespace } from "../../src/core/text.ts";
 import { parseCsv } from "../../src/corpus/load.ts";
+import { createEmbedder } from "../../src/embeddings/embedder.ts";
 import type { AgreementReport } from "../../src/evaluation/agreement.ts";
 import { EvalPaths, type JudgeRow, type RecodeRow } from "../../src/evaluation/types.ts";
 import { parseOpenCodingSnippets } from "../../src/evidence/source-memory.ts";
@@ -21,22 +23,30 @@ import type { EnrichedCodebook } from "../../src/review/schema.ts";
 import { PiRpc, piAvailable } from "../helpers/pi-rpc.ts";
 
 /**
- * Live suite: real models through OpenCode Zen, driven through the real pi binary. Assertions are
+ * Live suite: real models through OpenCode Go, driven through the real pi binary. Assertions are
  * invariants that must hold for any competent model, never exact outputs. Opt in with
- * `npm run test:live` and OPENCODE_API_KEY. Zen serves no embeddings, so clustering defaults to
- * `llm`; set IDCODER_LIVE_CLUSTERING=embedding plus IDCODER_LIVE_EMBED_* to exercise K-means.
+ * `npm run test:live` and OPENCODE_API_KEY. Go serves no embeddings, so they run locally through
+ * transformers.js unless IDCODER_LIVE_EMBED_BASE_URL points at an OpenAI-compatible server.
  */
 const env = process.env;
 const enabled = Boolean(env.IDCODER_LIVE && env.OPENCODE_API_KEY && piAvailable);
-const CODER = env.IDCODER_LIVE_CODER ?? "opencode/deepseek-v4-flash";
-const DEDUCTIVE = (env.IDCODER_LIVE_DEDUCTIVE ?? "opencode/glm-5.3-flash").split(",");
-const JUDGES = (env.IDCODER_LIVE_JUDGES ?? "opencode/gpt-5.4-nano").split(",");
-const CLUSTERING = env.IDCODER_LIVE_CLUSTERING ?? "llm";
-const EMBEDDINGS = {
-	baseUrl: env.IDCODER_LIVE_EMBED_BASE_URL ?? "https://api.openai.com/v1",
-	apiKeyEnv: env.IDCODER_LIVE_EMBED_KEY_ENV ?? "OPENAI_API_KEY",
-	model: env.IDCODER_LIVE_EMBED_MODEL ?? "text-embedding-3-small",
-};
+const CODER = env.IDCODER_LIVE_CODER ?? "opencode-go/muse-spark-1.3-contributor";
+const DEDUCTIVE = (env.IDCODER_LIVE_DEDUCTIVE ?? "opencode-go/longcat-2.5-preview-free").split(",");
+const JUDGES = (env.IDCODER_LIVE_JUDGES ?? "opencode-go/muse-spark-1.2-contributor").split(",");
+const EMBED_KEY_ENV = env.IDCODER_LIVE_EMBED_KEY_ENV ?? "OPENAI_API_KEY";
+const EMBEDDINGS = env.IDCODER_LIVE_EMBED_BASE_URL
+	? {
+			provider: "openai-compatible",
+			baseUrl: env.IDCODER_LIVE_EMBED_BASE_URL,
+			apiKeyEnv: EMBED_KEY_ENV,
+			model: env.IDCODER_LIVE_EMBED_MODEL ?? "text-embedding-3-small",
+		}
+	: {
+			provider: "transformers",
+			model: env.IDCODER_LIVE_EMBED_MODEL ?? "onnx-community/Qwen3-Embedding-0.6B-ONNX",
+			pooling: "last_token",
+			dtype: "q8",
+		};
 const MAX_USD = Number(env.IDCODER_LIVE_MAX_USD ?? "1.00");
 const OFF_TOPIC = ["r13", "r14", "r23"];
 
@@ -47,6 +57,11 @@ describe.runIf(enabled)("live: full ID-Coder run on real models", () => {
 	let docs: Map<string, string>;
 
 	beforeAll(async () => {
+		// Fetch the local embedding model up front so its one-time download doesn't eat a stage timeout.
+		if (EMBEDDINGS.provider === "transformers") {
+			const { embeddings } = resolveConfig({ study: { researchQuestion: "-", data: "-" }, embeddings: EMBEDDINGS });
+			await createEmbedder(embeddings).embed(["warmup"]);
+		}
 		project = await mkdtemp(join(tmpdir(), "idcoder-live-"));
 		const agentDir = join(project, ".agent");
 		await mkdir(agentDir, { recursive: true });
@@ -56,11 +71,12 @@ describe.runIf(enabled)("live: full ID-Coder run on real models", () => {
 		);
 		await writeJson(join(project, ".idcoder", "config.json"), {
 			study: { researchQuestion: "What do players complain about?", data: "corpus.csv", slug: "live" },
-			models: { coder: CODER, deductive: DEDUCTIVE, judges: JUDGES, maxRetries: 4 },
+			models: { coder: CODER, deductive: DEDUCTIVE, judges: JUDGES, maxRetries: 4, maxTokens: 16384 },
 			embeddings: EMBEDDINGS,
 			openCoding: { validator: true, workers: 4 },
-			clustering: { method: CLUSTERING, kMin: 3, kMaxCap: 8 },
+			clustering: { method: env.IDCODER_LIVE_CLUSTERING ?? "embedding", kMin: 3, kMaxCap: 8 },
 			labeling: { samples: 3, sampleSize: 6, workers: 4 },
+			report: { completionTokens: 8192 },
 			evaluation: { levels: ["theme_only", "full"], recode: { batchSize: 10 }, judge: { batchSize: 5 } },
 		});
 		paths = RunPaths.forSlug(project, "live");
@@ -68,10 +84,10 @@ describe.runIf(enabled)("live: full ID-Coder run on real models", () => {
 			cwd: project,
 			agentDir,
 			model: CODER,
-			env: { OPENCODE_API_KEY: env.OPENCODE_API_KEY, [EMBEDDINGS.apiKeyEnv]: env[EMBEDDINGS.apiKeyEnv] },
+			env: { OPENCODE_API_KEY: env.OPENCODE_API_KEY, [EMBED_KEY_ENV]: env[EMBED_KEY_ENV] },
 			offline: false,
 		});
-	}, 60_000);
+	}, 3_600_000);
 
 	afterAll(async () => {
 		await pi?.close();

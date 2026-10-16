@@ -5,7 +5,7 @@ import { ModelResolutionError, PiModelGateway } from "../../src/llm/gateway.ts";
 interface Captured {
 	model: { provider: string; id: string };
 	context: { systemPrompt?: string; messages: Array<{ role: string; content: string }> };
-	options: { temperature?: number; maxTokens?: number; onPayload?: (p: unknown) => unknown };
+	options: { temperature?: number; maxTokens?: number; sessionId?: string; onPayload?: (p: unknown) => unknown };
 }
 
 function fakeRegistry(reply: Record<string, unknown>, captured: Captured[] = []): ModelRegistry {
@@ -56,7 +56,7 @@ describe("PiModelGateway", () => {
 
 	it("streams through pi with system prompt, sampling options, and payload decoration", async () => {
 		const captured: Captured[] = [];
-		const gateway = new PiModelGateway(fakeRegistry(assistant, captured), undefined);
+		const gateway = new PiModelGateway(fakeRegistry(assistant, captured), undefined, "session-1");
 		const response = await gateway.complete("opencode/google/gemma-4", {
 			system: "SYS",
 			prompt: "PROMPT",
@@ -75,7 +75,7 @@ describe("PiModelGateway", () => {
 		const call = captured[0]!;
 		expect(call.context.systemPrompt).toBe("SYS");
 		expect(call.context.messages[0]).toMatchObject({ role: "user", content: "PROMPT" });
-		expect(call.options).toMatchObject({ temperature: 0, maxTokens: 123 });
+		expect(call.options).toMatchObject({ temperature: 0, maxTokens: 123, sessionId: "session-1" });
 		expect(call.options.onPayload!({ model: "m" })).toMatchObject({
 			top_k: 1,
 			response_format: { type: "json_schema" },

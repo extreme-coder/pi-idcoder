@@ -123,7 +123,8 @@ describe("createEmbedder", () => {
 	});
 
 	it("explains how to install the optional local backend", async () => {
-		const embedder = new TransformersEmbedder({ ...base, provider: "transformers", model: "x" });
+		const missing = () => Promise.reject(new Error("Cannot find package '@huggingface/transformers'"));
+		const embedder = new TransformersEmbedder({ ...base, provider: "transformers", model: "x" }, missing);
 		await expect(embedder.embed(["a"])).rejects.toThrow(/@huggingface\/transformers/);
 	});
 });

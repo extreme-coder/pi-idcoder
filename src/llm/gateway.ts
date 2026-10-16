@@ -88,10 +88,13 @@ function usageOf(message: AssistantMessage): TokenUsage {
 export class PiModelGateway implements ModelGateway {
 	private readonly registry: ModelRegistry;
 	private readonly current: Model<Api> | undefined;
+	/** pi's session id; providers such as OpenCode Go route on it and reject calls without it. */
+	private readonly sessionId: string | undefined;
 
-	constructor(registry: ModelRegistry, current: Model<Api> | undefined) {
+	constructor(registry: ModelRegistry, current: Model<Api> | undefined, sessionId?: string) {
 		this.registry = registry;
 		this.current = current;
+		this.sessionId = sessionId;
 	}
 
 	private resolve(ref: string): Model<Api> {
@@ -131,6 +134,7 @@ export class PiModelGateway implements ModelGateway {
 				signal: request.signal,
 				temperature: request.temperature,
 				maxTokens: request.maxTokens,
+				sessionId: this.sessionId,
 				onPayload: (payload) => decoratePayload(model.api, payload, request.jsonSchema, request.extraBody),
 			})
 			.result();
