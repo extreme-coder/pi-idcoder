@@ -527,7 +527,7 @@ describe("summary", () => {
 	});
 
 	it("slugs model refs for file names", () => {
-		expect(modelSlug("openrouter/google/gemma-4:free")).toBe("openrouter__google__gemma-4__free");
+		expect(modelSlug("opencode/google/gemma-4:free")).toBe("opencode__google__gemma-4__free");
 	});
 });
 

@@ -21,16 +21,22 @@ import type { EnrichedCodebook } from "../../src/review/schema.ts";
 import { PiRpc, piAvailable } from "../helpers/pi-rpc.ts";
 
 /**
- * Live suite: real models through OpenRouter, driven through the real pi binary. Assertions are
+ * Live suite: real models through OpenCode Zen, driven through the real pi binary. Assertions are
  * invariants that must hold for any competent model, never exact outputs. Opt in with
- * `npm run test:live` and OPENROUTER_API_KEY.
+ * `npm run test:live` and OPENCODE_API_KEY. Zen serves no embeddings, so clustering defaults to
+ * `llm`; set IDCODER_LIVE_CLUSTERING=embedding plus IDCODER_LIVE_EMBED_* to exercise K-means.
  */
 const env = process.env;
-const enabled = Boolean(env.IDCODER_LIVE && env.OPENROUTER_API_KEY && piAvailable);
-const CODER = env.IDCODER_LIVE_CODER ?? "openrouter/qwen/qwen3-30b-a3b-instruct-2507";
-const DEDUCTIVE = (env.IDCODER_LIVE_DEDUCTIVE ?? "openrouter/google/gemma-3-27b-it").split(",");
-const JUDGES = (env.IDCODER_LIVE_JUDGES ?? "openrouter/openai/gpt-4o-mini").split(",");
-const EMBED_MODEL = env.IDCODER_LIVE_EMBED_MODEL ?? "openai/text-embedding-3-small";
+const enabled = Boolean(env.IDCODER_LIVE && env.OPENCODE_API_KEY && piAvailable);
+const CODER = env.IDCODER_LIVE_CODER ?? "opencode/deepseek-v4-flash";
+const DEDUCTIVE = (env.IDCODER_LIVE_DEDUCTIVE ?? "opencode/glm-5.3-flash").split(",");
+const JUDGES = (env.IDCODER_LIVE_JUDGES ?? "opencode/gpt-5.4-nano").split(",");
+const CLUSTERING = env.IDCODER_LIVE_CLUSTERING ?? "llm";
+const EMBEDDINGS = {
+	baseUrl: env.IDCODER_LIVE_EMBED_BASE_URL ?? "https://api.openai.com/v1",
+	apiKeyEnv: env.IDCODER_LIVE_EMBED_KEY_ENV ?? "OPENAI_API_KEY",
+	model: env.IDCODER_LIVE_EMBED_MODEL ?? "text-embedding-3-small",
+};
 const MAX_USD = Number(env.IDCODER_LIVE_MAX_USD ?? "1.00");
 const OFF_TOPIC = ["r13", "r14", "r23"];
 
@@ -51,9 +57,9 @@ describe.runIf(enabled)("live: full ID-Coder run on real models", () => {
 		await writeJson(join(project, ".idcoder", "config.json"), {
 			study: { researchQuestion: "What do players complain about?", data: "corpus.csv", slug: "live" },
 			models: { coder: CODER, deductive: DEDUCTIVE, judges: JUDGES, maxRetries: 4 },
-			embeddings: { baseUrl: "https://openrouter.ai/api/v1", apiKeyEnv: "OPENROUTER_API_KEY", model: EMBED_MODEL },
+			embeddings: EMBEDDINGS,
 			openCoding: { validator: true, workers: 4 },
-			clustering: { method: env.IDCODER_LIVE_CLUSTERING ?? "embedding", kMin: 3, kMaxCap: 8 },
+			clustering: { method: CLUSTERING, kMin: 3, kMaxCap: 8 },
 			labeling: { samples: 3, sampleSize: 6, workers: 4 },
 			evaluation: { levels: ["theme_only", "full"], recode: { batchSize: 10 }, judge: { batchSize: 5 } },
 		});
@@ -62,7 +68,7 @@ describe.runIf(enabled)("live: full ID-Coder run on real models", () => {
 			cwd: project,
 			agentDir,
 			model: CODER,
-			env: { OPENROUTER_API_KEY: env.OPENROUTER_API_KEY },
+			env: { OPENCODE_API_KEY: env.OPENCODE_API_KEY, [EMBEDDINGS.apiKeyEnv]: env[EMBEDDINGS.apiKeyEnv] },
 			offline: false,
 		});
 	}, 60_000);

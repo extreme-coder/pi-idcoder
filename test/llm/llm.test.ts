@@ -55,7 +55,7 @@ describe("skills", () => {
 
 describe("model refs", () => {
 	it("splits provider/model ids with slashes in the id", () => {
-		expect(splitModelRef("openrouter/google/gemma-4")).toEqual({ provider: "openrouter", id: "google/gemma-4" });
+		expect(splitModelRef("opencode/google/gemma-4")).toEqual({ provider: "opencode", id: "google/gemma-4" });
 		expect(splitModelRef("nope")).toBeUndefined();
 		expect(splitModelRef("/x")).toBeUndefined();
 		expect(splitModelRef("x/")).toBeUndefined();

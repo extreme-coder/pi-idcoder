@@ -18,7 +18,7 @@ export class EmbeddingError extends Error {
 
 export type FetchLike = (input: string, init: RequestInit) => Promise<Response>;
 
-/** Any `/v1/embeddings` server: OpenAI, OpenRouter, LM Studio, vLLM, SGLang, Ollama. */
+/** Any `/v1/embeddings` server: OpenAI, LM Studio, vLLM, SGLang, Ollama. */
 export class OpenAICompatibleEmbedder implements Embedder {
 	private readonly config: EmbeddingsConfig;
 	private readonly fetchImpl: FetchLike;

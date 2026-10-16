@@ -10,7 +10,7 @@ interface Captured {
 
 function fakeRegistry(reply: Record<string, unknown>, captured: Captured[] = []): ModelRegistry {
 	const models = [
-		{ provider: "openrouter", id: "google/gemma-4", api: "openai-completions" },
+		{ provider: "opencode", id: "google/gemma-4", api: "openai-completions" },
 		{ provider: "anthropic", id: "claude", api: "anthropic-messages" },
 	];
 	return {
@@ -37,13 +37,13 @@ const assistant = {
 describe("PiModelGateway", () => {
 	it("resolves provider/model refs, including ids containing slashes", () => {
 		const gateway = new PiModelGateway(fakeRegistry(assistant), undefined);
-		expect(gateway.describe("openrouter/google/gemma-4")).toBe("openrouter/google/gemma-4");
+		expect(gateway.describe("opencode/google/gemma-4")).toBe("opencode/google/gemma-4");
 	});
 
 	it("explains unknown models and a missing session model", () => {
 		const gateway = new PiModelGateway(fakeRegistry(assistant), undefined);
 		expect(() => gateway.describe("nope/x")).toThrow(ModelResolutionError);
-		expect(() => gateway.describe("nope/x")).toThrow(/openrouter\/google\/gemma-4/);
+		expect(() => gateway.describe("nope/x")).toThrow(/opencode\/google\/gemma-4/);
 		expect(() => gateway.describe("current")).toThrow(/No session model/);
 		expect(() => gateway.describe("noslash")).toThrow(/provider\/model-id/);
 	});
@@ -57,7 +57,7 @@ describe("PiModelGateway", () => {
 	it("streams through pi with system prompt, sampling options, and payload decoration", async () => {
 		const captured: Captured[] = [];
 		const gateway = new PiModelGateway(fakeRegistry(assistant, captured), undefined);
-		const response = await gateway.complete("openrouter/google/gemma-4", {
+		const response = await gateway.complete("opencode/google/gemma-4", {
 			system: "SYS",
 			prompt: "PROMPT",
 			maxTokens: 123,
@@ -70,7 +70,7 @@ describe("PiModelGateway", () => {
 			stopReason: "stop",
 			errorMessage: undefined,
 			usage: { input: 10, output: 5, cacheRead: 2, cacheWrite: 1, total: 18, cost: 0.25 },
-			model: "openrouter/google/gemma-4",
+			model: "opencode/google/gemma-4",
 		});
 		const call = captured[0]!;
 		expect(call.context.systemPrompt).toBe("SYS");

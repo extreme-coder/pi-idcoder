@@ -6,7 +6,7 @@
 - **Deductive recoding agents.** Re-code every quote from the codebook alone, at three levels of codebook detail.
 - **Evaluation.** Krippendorff's α between the two, a blind pool of their disagreements, LLM judges, and human judges.
 
-Everything runs inside pi. LLM calls go through pi's model registry, so any provider pi supports works: OpenRouter, Anthropic, OpenAI, Google, or a local vLLM/SGLang/Ollama endpoint. The human gate opens as a terminal UI in your pi session or in the Graph Builder web viewer.
+Everything runs inside pi. LLM calls go through pi's model registry, so any provider pi supports works: OpenCode, Anthropic, OpenAI, Google, or a local vLLM/SGLang/Ollama endpoint. The human gate opens as a terminal UI in your pi session or in the Graph Builder web viewer.
 
 ## How Figure 1 maps onto the code
 
@@ -95,10 +95,10 @@ Set `review.enabled: false` for fully automated runs.
 {
   "study": { "researchQuestion": "What do players complain about?", "data": "data/reviews.csv", "slug": "games" },
   "models": {
-    "coder": "openrouter/qwen/qwen3-30b-a3b-instruct-2507",
+    "coder": "opencode/deepseek-v4-flash",
     "validator": "…", "clustering": "…", "enrichment": "…", "report": "…",   // each defaults to coder
-    "deductive": ["openrouter/google/gemma-3-27b-it", "openrouter/qwen/qwen3-32b"],
-    "judges": ["openrouter/openai/gpt-4o-mini", "openrouter/google/gemini-2.5-flash-lite"],
+    "deductive": ["opencode/glm-5.3-flash", "opencode/qwen3.8-flash"],
+    "judges": ["opencode/gpt-5.4-nano", "opencode/gemini-3.5-flash-lite"],
     "temperature": 0, "maxTokens": 4096, "maxRetries": 3,
     "extraBody": { "chat_template_kwargs": { "enable_thinking": false } }   // OpenAI-compatible servers only
   },
@@ -127,7 +127,7 @@ Set `review.enabled: false` for fully automated runs.
 
 **Local models.** Add your SGLang, vLLM, or Ollama endpoint to pi's `models.json` as an `openai-completions` provider and reference it as `myprovider/model`. Per-call system prompts and JSON-schema output constraints work through pi. Use `models.extraBody` for server-specific fields.
 
-**Embeddings.** `openai-compatible` works with OpenAI, OpenRouter, LM Studio, vLLM, and Ollama. For a fully local setup, install the optional `@huggingface/transformers` and use `{ "provider": "transformers", "model": "onnx-community/Qwen3-Embedding-0.6B-ONNX", "pooling": "last_token" }`.
+**Embeddings.** `openai-compatible` works with OpenAI, LM Studio, vLLM, and Ollama. For a fully local setup, install the optional `@huggingface/transformers` and use `{ "provider": "transformers", "model": "onnx-community/Qwen3-Embedding-0.6B-ONNX", "pooling": "last_token" }`.
 
 ## Outputs
 
@@ -164,5 +164,5 @@ evaluation/summary.json  summary.md
 npm install
 npm run check          # typecheck + lint + all offline tests (including real pi over RPC)
 npm run test:coverage  # coverage with thresholds
-npm run test:live      # real models via OpenRouter (needs OPENROUTER_API_KEY)
+npm run test:live      # real models via OpenCode Zen (OPENCODE_API_KEY in env or .env)
 ```
